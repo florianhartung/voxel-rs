@@ -13,6 +13,7 @@ use crate::engine::rendering::camera::{Camera, CameraController};
 use crate::engine::rendering::RenderCtx;
 use crate::engine::world::chunk::renderer::ChunkRenderer;
 use crate::engine::world::chunk::{Chunk, MeshedChunk};
+use crate::engine::world::gen;
 
 #[macro_use]
 mod macros;
@@ -28,8 +29,6 @@ pub struct Engine {
 
     chunk: MeshedChunk,
     chunk_renderer: ChunkRenderer,
-    chunk2: MeshedChunk,
-    chunk_renderer2: ChunkRenderer,
 
     camera: Camera,
     camera_controller: CameraController,
@@ -53,11 +52,8 @@ impl Engine {
             1000.0,
         );
 
-        let chunk = Chunk::new_with_random_data().into_meshed();
+        let chunk = Chunk::from_data(gen::get_chunk()).into_meshed();
         let chunk_renderer = chunk.get_renderer(&render_ctx, &camera.bind_group_layout);
-
-        let chunk2 = Chunk::new_with_random_data().into_meshed();
-        let chunk_renderer2 = chunk.get_renderer(&render_ctx, &camera.bind_group_layout);
 
         Self {
             window,
@@ -65,8 +61,6 @@ impl Engine {
             render_ctx,
             chunk,
             chunk_renderer,
-            chunk2,
-            chunk_renderer2,
             camera,
             camera_controller: CameraController::new(30.0, 0.5),
             mouse_pressed: false,
