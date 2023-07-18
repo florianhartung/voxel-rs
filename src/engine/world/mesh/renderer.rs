@@ -1,5 +1,5 @@
 use wgpu::util::DeviceExt;
-use wgpu::{include_wgsl, vertex_attr_array};
+use wgpu::{include_wgsl, vertex_attr_array, Face};
 
 use crate::engine::rendering::texture::Texture;
 use crate::engine::rendering::{HasBufferLayout, RenderCtx, Renderer};
@@ -74,10 +74,10 @@ impl MeshRenderer {
                     }),
                     primitive: wgpu::PrimitiveState {
                         topology: wgpu::PrimitiveTopology::TriangleList,
-                        cull_mode: None,
+                        cull_mode: Some(Face::Back),
                         strip_index_format: None,
                         front_face: wgpu::FrontFace::Ccw,
-                        polygon_mode: wgpu::PolygonMode::Line,
+                        polygon_mode: wgpu::PolygonMode::Fill,
                         unclipped_depth: false,
                         conservative: false,
                     },

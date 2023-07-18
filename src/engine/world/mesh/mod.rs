@@ -8,8 +8,10 @@ pub struct MeshVertex {
 }
 
 impl MeshVertex {
-    pub fn from_pos(position: [f32; 3]) -> Self {
-        Self { position }
+    pub fn from_pos<T: Into<[f32; 3]>>(position: T) -> Self {
+        Self {
+            position: position.into(),
+        }
     }
 }
 

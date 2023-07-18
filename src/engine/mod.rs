@@ -13,7 +13,7 @@ use crate::engine::rendering::camera::{Camera, CameraController};
 use crate::engine::rendering::RenderCtx;
 use crate::engine::world::chunk::renderer::ChunkRenderer;
 use crate::engine::world::chunk::{Chunk, MeshedChunk};
-use crate::engine::world::gen;
+use crate::engine::world::generation;
 
 #[macro_use]
 mod macros;
@@ -27,7 +27,7 @@ pub struct Engine {
     frame_timer: FrameTimer,
     render_ctx: RenderCtx,
 
-    chunk: MeshedChunk,
+    chunk: Box<MeshedChunk>,
     chunk_renderer: ChunkRenderer,
 
     camera: Camera,
@@ -52,7 +52,7 @@ impl Engine {
             1000.0,
         );
 
-        let chunk = Chunk::from_data(gen::get_chunk()).into_meshed();
+        let chunk = Box::new(Chunk::from_data(generation::get_chunk(2)).into_meshed());
         let chunk_renderer = chunk.get_renderer(&render_ctx, &camera.bind_group_layout);
 
         Self {
@@ -115,9 +115,9 @@ impl Engine {
                     },
                 ..
             } => {
-                self.chunk.randomize_data();
-                self.chunk
-                    .update_renderer(&mut self.chunk_renderer, &self.render_ctx);
+                // self.chunk.randomize_data();
+                // self.chunk
+                //     .update_renderer(&mut self.chunk_renderer, &self.render_ctx);
                 self.mouse_pressed = matches!(state, ElementState::Pressed);
             }
             Event::DeviceEvent {

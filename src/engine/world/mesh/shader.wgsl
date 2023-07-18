@@ -20,9 +20,9 @@ fn vs_main(
     @builtin(vertex_index) in_vertex_index: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * vec4(model.position, 1.0);
+    out.clip_position = camera.view_proj * vec4(model.position * 0.5, 1.0);
 
-    out.color = model.position / 20.0;
+    out.color = model.position / 64.0;
     return out;
 }
 
