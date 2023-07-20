@@ -2,8 +2,15 @@ struct CameraUniform {
     view_proj: mat4x4<f32>,
 }
 
+//struct ModelUniform {
+//	pos: vec2<f32>,
+//}
+
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
+
+@group(1) @binding(0)
+var<uniform> model_uniform: vec3<f32>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -20,9 +27,9 @@ fn vs_main(
     @builtin(vertex_index) in_vertex_index: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * vec4(model.position * 0.5, 1.0);
+    out.clip_position = camera.view_proj * vec4((model.position + model_uniform), 1.0) ;
 
-    out.color = model.position / 64.0;
+    out.color = model.position / 32.0;
     return out;
 }
 

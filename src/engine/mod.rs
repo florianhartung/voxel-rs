@@ -1,4 +1,4 @@
-use cgmath::Deg;
+use cgmath::{Deg, Vector3};
 use winit::dpi::PhysicalSize;
 use winit::event::{
     DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent,
@@ -27,8 +27,7 @@ pub struct Engine {
     frame_timer: FrameTimer,
     render_ctx: RenderCtx,
 
-    chunk: Box<MeshedChunk>,
-    chunk_renderer: ChunkRenderer,
+    chunks: Vec<(Box<MeshedChunk>, ChunkRenderer)>,
 
     camera: Camera,
     camera_controller: CameraController,
@@ -42,7 +41,7 @@ impl Engine {
 
         let camera = Camera::new(
             &render_ctx,
-            (0.0, 5.0, 10.0),
+            (0.0, 0.0, 0.0),
             Deg(-90.0),
             Deg(-20.0),
             render_ctx.surface_config.width,
@@ -51,16 +50,27 @@ impl Engine {
             0.1,
             1000.0,
         );
+        const WORLD_SEED: u32 = 2;
 
-        let chunk = Box::new(Chunk::from_data(generation::get_chunk(2)).into_meshed());
-        let chunk_renderer = chunk.get_renderer(&render_ctx, &camera.bind_group_layout);
+        let chunks = (0..(8u32.pow(2)))
+            .map(|i| {
+                let chunk_pos = Vector3::new(i % 8, 0, i / 8);
+
+                let chunk_data = generation::get_chunk(WORLD_SEED, chunk_pos);
+
+                let chunk = Box::new(Chunk::new(chunk_data, chunk_pos).into_meshed());
+
+                let chunk_renderer = chunk.get_renderer(&render_ctx, &camera.bind_group_layout);
+
+                (chunk, chunk_renderer)
+            })
+            .collect();
 
         Self {
             window,
             frame_timer: FrameTimer::new(),
             render_ctx,
-            chunk,
-            chunk_renderer,
+            chunks,
             camera,
             camera_controller: CameraController::new(30.0, 0.5),
             mouse_pressed: false,
@@ -74,7 +84,9 @@ impl Engine {
         self.camera.update_buffer(&self.render_ctx);
 
         let mut handle = self.render_ctx.start_rendering();
-        handle.render(&self.chunk_renderer, &self.camera);
+        self.chunks
+            .iter()
+            .for_each(|(_chunk, renderer)| handle.render(renderer, &self.camera));
         handle.finish_rendering();
 
         println!("{:.2}fps", 1.0 / dt.as_secs_f32());

@@ -1,3 +1,4 @@
+use cgmath::{Vector3, Zero};
 use std::ops::{Add, Deref, DerefMut};
 
 use strum::IntoEnumIterator;
@@ -18,15 +19,15 @@ pub const CHUNK_SIZE: u32 = 64;
 
 pub struct Chunk {
     data: ChunkData,
+    position: Vector3<u32>,
 }
 
 impl Chunk {
-    const SIZE: u32 = 256;
-    const SIZE2: u32 = Self::SIZE.pow(2);
-    const SIZE3: u32 = Self::SIZE.pow(3);
-
-    pub fn from_data(chunk_data: ChunkData) -> Self {
-        Self { data: chunk_data }
+    pub fn new(chunk_data: ChunkData, position: Vector3<u32>) -> Self {
+        Self {
+            data: chunk_data,
+            position,
+        }
     }
 
     pub fn into_meshed(self) -> MeshedChunk {
@@ -35,6 +36,7 @@ impl Chunk {
         MeshedChunk {
             data: self.data,
             mesh,
+            position: self.position,
         }
     }
 }
@@ -42,6 +44,7 @@ impl Chunk {
 pub struct MeshedChunk {
     data: ChunkData,
     mesh: Mesh,
+    position: Vector3<u32>,
 }
 
 impl MeshedChunk {
@@ -51,7 +54,13 @@ impl MeshedChunk {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> ChunkRenderer {
         ChunkRenderer {
-            mesh_renderer: self.mesh.get_renderer(render_ctx, camera_bind_group_layout),
+            mesh_renderer: self.mesh.get_renderer(
+                render_ctx,
+                camera_bind_group_layout,
+                (self.position * CHUNK_SIZE)
+                    .cast()
+                    .expect("u32 should fit into f32"),
+            ),
         }
     }
 

@@ -1,3 +1,4 @@
+use cgmath::Vector3;
 use wgpu::util::DeviceExt;
 use wgpu::{include_wgsl, vertex_attr_array, Face};
 
@@ -28,6 +29,9 @@ pub struct MeshRenderer {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     render_pipeline: wgpu::RenderPipeline,
+    model_position: Vector3<f32>,
+    model_position_uniform_buffer: wgpu::Buffer,
+    model_position_bind_group: wgpu::BindGroup,
 }
 
 impl MeshRenderer {
@@ -36,6 +40,7 @@ impl MeshRenderer {
         vertices: &[MeshVertex],
         indices: &[u32],
         camera_bind_group_layout: &wgpu::BindGroupLayout,
+        model_position: Vector3<f32>,
     ) -> Self {
         let (vertex_buffer, index_buffer) = create_vert_ind_buffers(vertices, indices, render_ctx);
 
@@ -43,13 +48,60 @@ impl MeshRenderer {
             .device
             .create_shader_module(include_wgsl!("shader.wgsl"));
 
+        let model_position_buffer =
+            render_ctx
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Model position uniform buffer"),
+                    usage: wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::UNIFORM
+                        | wgpu::BufferUsages::VERTEX,
+                    contents: bytemuck::cast_slice(&[
+                        model_position.x,
+                        model_position.y,
+                        model_position.z,
+                    ]),
+                });
+
+        let model_position_bind_group_layout =
+            render_ctx
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Model position bind group layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            min_binding_size: None,
+                            has_dynamic_offset: false,
+                        },
+                        count: None,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                    }],
+                });
+
+        let model_position_bind_group =
+            render_ctx
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Model position bind group"),
+                    layout: &model_position_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: model_position_buffer.as_entire_binding(),
+                    }],
+                });
+
         let render_pipeline_layout =
             render_ctx
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Mesh render pipeline layout"),
                     push_constant_ranges: &[],
-                    bind_group_layouts: &[camera_bind_group_layout],
+                    bind_group_layouts: &[
+                        camera_bind_group_layout,
+                        &model_position_bind_group_layout,
+                    ],
                 });
 
         let render_pipeline =
@@ -74,7 +126,7 @@ impl MeshRenderer {
                     }),
                     primitive: wgpu::PrimitiveState {
                         topology: wgpu::PrimitiveTopology::TriangleList,
-                        cull_mode: Some(Face::Back),
+                        cull_mode: None,
                         strip_index_format: None,
                         front_face: wgpu::FrontFace::Ccw,
                         polygon_mode: wgpu::PolygonMode::Fill,
@@ -101,6 +153,9 @@ impl MeshRenderer {
             index_buffer,
             num_indices: indices.len() as u32,
             render_pipeline,
+            model_position,
+            model_position_uniform_buffer: model_position_buffer,
+            model_position_bind_group,
         }
     }
 
@@ -129,6 +184,7 @@ impl Renderer for MeshRenderer {
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
         render_pass.set_bind_group(0, camera_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.model_position_bind_group, &[]);
 
         render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
     }

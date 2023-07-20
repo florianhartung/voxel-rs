@@ -19,6 +19,7 @@ pub struct RenderHandle<'a> {
     encoder: ManuallyDrop<wgpu::CommandEncoder>,
     target_texture: ManuallyDrop<wgpu::SurfaceTexture>,
     target_texture_view: wgpu::TextureView,
+    clear_before_next_render: bool,
 }
 
 pub struct RenderCtx {
@@ -127,23 +128,33 @@ impl RenderCtx {
             encoder: ManuallyDrop::new(encoder),
             target_texture: ManuallyDrop::new(target_texture),
             target_texture_view,
+            clear_before_next_render: true,
         }
     }
 }
 
 impl RenderHandle<'_> {
     pub fn render<T: Renderer>(&mut self, renderer: &T, camera: &Camera) {
+        let (load_op, depth_load_op) = if self.clear_before_next_render {
+            (
+                wgpu::LoadOp::Clear(wgpu::Color {
+                    r: 0.4941,
+                    g: 0.6627,
+                    b: 1.0,
+                    a: 1.0,
+                }),
+                wgpu::LoadOp::Clear(1.0),
+            )
+        } else {
+            (wgpu::LoadOp::Load, wgpu::LoadOp::Load)
+        };
+
         let mut render_pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.target_texture_view,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.3,
-                        g: 0.4,
-                        b: 0.4,
-                        a: 1.0,
-                    }),
+                    load: load_op,
                     store: true,
                 },
                 resolve_target: None,
@@ -151,12 +162,14 @@ impl RenderHandle<'_> {
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.render_ctx.depth_texture.view,
                 depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
+                    load: depth_load_op,
                     store: true,
                 }),
                 stencil_ops: None,
             }),
         });
+        self.clear_before_next_render = false;
+
         renderer.render(&mut render_pass, &camera.bind_group);
     }
     pub fn finish_rendering(self) {} // Here self is dropped
