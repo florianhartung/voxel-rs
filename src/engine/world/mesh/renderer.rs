@@ -10,11 +10,13 @@ use crate::engine::world::mesh::MeshVertex;
 #[repr(C)]
 pub struct RawMeshVertex {
     position: [f32; 3],
+    color: [f32; 3],
 }
 
 impl HasBufferLayout for RawMeshVertex {
     fn layout<'a>() -> wgpu::VertexBufferLayout<'a> {
-        const ATTRIBUTES: [wgpu::VertexAttribute; 1] = vertex_attr_array![0 => Float32x3];
+        const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
+            vertex_attr_array![0 => Float32x3, 1 => Float32x3];
 
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as _,
@@ -199,6 +201,7 @@ fn create_vert_ind_buffers(
         .iter()
         .map(|vertex| RawMeshVertex {
             position: vertex.position,
+            color: vertex.color,
         })
         .collect();
 

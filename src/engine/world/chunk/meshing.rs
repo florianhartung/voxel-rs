@@ -7,14 +7,14 @@ use crate::engine::world::chunk::{Chunk, ChunkData};
 use crate::engine::world::mesh::{Mesh, MeshVertex};
 
 pub fn generate_mesh_from_chunk_data(data: &ChunkData) -> Mesh {
-    let mesh = generate_greedy_mesh(data);
+    let mesh = generate_culled_mesh(data);
     dbg!(mesh.vertices.len());
 
     mesh
 }
 
 pub fn generate_greedy_mesh(data: &ChunkData) -> Mesh {
-    let mut quads: Vec<[Vector3<i32>; 4]> = Vec::new();
+    let mut quads: Vec<([Vector3<i32>; 4], Vector3<f32>)> = Vec::new();
     for d in 0..3 {
         let mut j: i32;
         let mut k: i32;
@@ -98,7 +98,13 @@ pub fn generate_greedy_mesh(data: &ChunkData) -> Mesh {
                         du[u] = w;
                         dv[v] = h;
 
-                        quads.extend([[x, x + du, x + du + dv, x + dv]].into_iter());
+                        quads.push((
+                            [x, x + du, x + du + dv, x + dv].into(),
+                            data.get_voxel(
+                                LocalLocation::try_from(x).expect("Should be inside boundaries"),
+                            )
+                            .color(),
+                        ));
                         // Zero-out mask
                         for l in 0..h {
                             for k in 0..w {
@@ -120,10 +126,11 @@ pub fn generate_greedy_mesh(data: &ChunkData) -> Mesh {
     let mut mesh = Mesh::new(Vec::new(), Vec::new());
     for q in quads {
         mesh.add_quad(
-            q[0].cast().unwrap(),
-            q[1].cast().unwrap(),
-            q[2].cast().unwrap(),
-            q[3].cast().unwrap(),
+            q.0[0].cast().unwrap(),
+            q.0[1].cast().unwrap(),
+            q.0[2].cast().unwrap(),
+            q.0[3].cast().unwrap(),
+            q.1,
         );
     }
 
@@ -148,6 +155,7 @@ pub fn generate_culled_mesh(data: &ChunkData) -> Mesh {
         b: usize,
         c: usize,
         d: usize,
+        color: Vector3<f32>,
     ) {
         const VERTEX_POSITIONS_OFFSETS: [Vector3<f32>; 8] = [
             Vector3::new(0.0, 0.0, 0.0),
@@ -169,17 +177,17 @@ pub fn generate_culled_mesh(data: &ChunkData) -> Mesh {
 
         let vertex_index = vertices.len() as u32;
 
-        vertices.push(MeshVertex::from_pos(a));
-        vertices.push(MeshVertex::from_pos(b));
-        vertices.push(MeshVertex::from_pos(c));
-        vertices.push(MeshVertex::from_pos(d));
+        vertices.push(MeshVertex::new(a, color));
+        vertices.push(MeshVertex::new(b, color));
+        vertices.push(MeshVertex::new(c, color));
+        vertices.push(MeshVertex::new(d, color));
 
         indices.extend([vertex_index + 0, vertex_index + 1, vertex_index + 2]);
         indices.extend([vertex_index + 2, vertex_index + 3, vertex_index + 0]);
     }
 
     LocalLocation::iter()
-        .filter(|&pos| data.get_voxel(pos).ty == 1)
+        .filter(|&pos| data.get_voxel(pos).ty >= 1)
         .for_each(|pos| {
             let floating_pos = Vector3::from(pos).cast::<f32>().unwrap();
 
@@ -202,6 +210,7 @@ pub fn generate_culled_mesh(data: &ChunkData) -> Mesh {
                         quad_indices[1],
                         quad_indices[2],
                         quad_indices[3],
+                        data.get_voxel(pos).color(),
                     );
                 }
             }

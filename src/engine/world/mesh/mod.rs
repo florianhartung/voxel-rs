@@ -7,12 +7,14 @@ pub mod renderer;
 #[derive(Debug)]
 pub struct MeshVertex {
     pub(crate) position: [f32; 3],
+    pub color: [f32; 3],
 }
 
 impl MeshVertex {
-    pub fn from_pos<T: Into<[f32; 3]>>(position: T) -> Self {
+    pub fn new<T: Into<[f32; 3]>>(position: T, color: T) -> Self {
         Self {
             position: position.into(),
+            color: color.into(),
         }
     }
 }
@@ -47,12 +49,19 @@ impl Mesh {
     }
 
     /// a, b, c, d counterclockwise
-    pub fn add_quad(&mut self, a: Vector3<f32>, b: Vector3<f32>, c: Vector3<f32>, d: Vector3<f32>) {
+    pub fn add_quad(
+        &mut self,
+        a: Vector3<f32>,
+        b: Vector3<f32>,
+        c: Vector3<f32>,
+        d: Vector3<f32>,
+        color: Vector3<f32>,
+    ) {
         let new_vertices = [
-            MeshVertex::from_pos(a),
-            MeshVertex::from_pos(b),
-            MeshVertex::from_pos(c),
-            MeshVertex::from_pos(d),
+            MeshVertex::new(a, color),
+            MeshVertex::new(b, color),
+            MeshVertex::new(c, color),
+            MeshVertex::new(d, color),
         ];
 
         let base_index = self.vertices.len() as u32;

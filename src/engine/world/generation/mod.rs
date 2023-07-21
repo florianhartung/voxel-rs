@@ -52,7 +52,30 @@ pub fn generate_perlin_terrain(world_seed: u32, chunk_position: Vector3<u32>) ->
             let normalized_height = (layered_perlin + 1.0) / 2.0;
             let height = 64.0 * normalized_height + 1.0;
 
-            v.ty = if coords.y < height { 1 } else { 0 };
+            v.ty = if coords.y < height {
+                {
+                    if coords.y + 1.0 < height {
+                        if coords.y + 6.0 < height {
+                            if perlin.get([coords.x * 0.25, coords.y * 0.4, coords.z * 0.25]) < -0.7
+                            {
+                                4
+                            } else if perlin.get([coords.x * 0.3, coords.y * 0.3, coords.z * 0.3])
+                                < -0.7
+                            {
+                                5
+                            } else {
+                                3
+                            }
+                        } else {
+                            1
+                        }
+                    } else {
+                        2
+                    }
+                }
+            } else {
+                0
+            };
         });
 
     chunk_voxel_data
