@@ -1,6 +1,6 @@
-use cgmath::{Vector3, Zero};
 use std::ops::{Add, Deref, DerefMut};
 
+use cgmath::{Vector3, Zero};
 use strum::IntoEnumIterator;
 
 use crate::engine::rendering::RenderCtx;
@@ -10,10 +10,11 @@ use crate::engine::world::chunk::renderer::ChunkRenderer;
 use crate::engine::world::mesh::Mesh;
 
 pub mod data;
-pub mod direction;
+mod direction;
 pub mod local_location;
 pub mod meshing;
 pub mod renderer;
+pub mod voxel_face;
 
 pub const CHUNK_SIZE: u32 = 64;
 
@@ -48,11 +49,7 @@ pub struct MeshedChunk {
 }
 
 impl MeshedChunk {
-    pub fn get_renderer(
-        &self,
-        render_ctx: &RenderCtx,
-        camera_bind_group_layout: &wgpu::BindGroupLayout,
-    ) -> ChunkRenderer {
+    pub fn get_renderer(&self, render_ctx: &RenderCtx, camera_bind_group_layout: &wgpu::BindGroupLayout) -> ChunkRenderer {
         ChunkRenderer {
             mesh_renderer: self.mesh.get_renderer(
                 render_ctx,
@@ -65,9 +62,7 @@ impl MeshedChunk {
     }
 
     pub fn randomize_data(&mut self) {
-        LocalLocation::iter().for_each(|pos| {
-            self.data.get_voxel_mut(pos).ty = if fastrand::f32() < 0.5 { 1 } else { 0 }
-        });
+        LocalLocation::iter().for_each(|pos| self.data.get_voxel_mut(pos).ty = if fastrand::f32() < 0.5 { 1 } else { 0 });
 
         self.mesh = meshing::generate_mesh_from_chunk_data(&self.data);
     }

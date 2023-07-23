@@ -4,6 +4,7 @@ use wgpu::{include_wgsl, vertex_attr_array, Face};
 
 use crate::engine::rendering::texture::Texture;
 use crate::engine::rendering::{HasBufferLayout, RenderCtx, Renderer};
+use crate::engine::util::AsBufferData;
 use crate::engine::world::mesh::MeshVertex;
 
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -15,8 +16,7 @@ pub struct RawMeshVertex {
 
 impl HasBufferLayout for RawMeshVertex {
     fn layout<'a>() -> wgpu::VertexBufferLayout<'a> {
-        const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-            vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+        const ATTRIBUTES: [wgpu::VertexAttribute; 2] = vertex_attr_array![0 => Float32x3, 1 => Float32x3];
 
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as _,
@@ -50,105 +50,91 @@ impl MeshRenderer {
             .device
             .create_shader_module(include_wgsl!("shader.wgsl"));
 
-        let model_position_buffer =
-            render_ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Model position uniform buffer"),
-                    usage: wgpu::BufferUsages::COPY_DST
-                        | wgpu::BufferUsages::UNIFORM
-                        | wgpu::BufferUsages::VERTEX,
-                    contents: bytemuck::cast_slice(&[
-                        model_position.x,
-                        model_position.y,
-                        model_position.z,
-                    ]),
-                });
+        let model_position_buffer = render_ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Model position uniform buffer"),
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::VERTEX,
+                contents: &model_position.as_buffer_data(),
+            });
 
-        let model_position_bind_group_layout =
-            render_ctx
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("Model position bind group layout"),
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            min_binding_size: None,
-                            has_dynamic_offset: false,
-                        },
-                        count: None,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                    }],
-                });
-
-        let model_position_bind_group =
-            render_ctx
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Model position bind group"),
-                    layout: &model_position_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: model_position_buffer.as_entire_binding(),
-                    }],
-                });
-
-        let render_pipeline_layout =
-            render_ctx
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Mesh render pipeline layout"),
-                    push_constant_ranges: &[],
-                    bind_group_layouts: &[
-                        camera_bind_group_layout,
-                        &model_position_bind_group_layout,
-                    ],
-                });
-
-        let render_pipeline =
-            render_ctx
-                .device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some("Default render pipeline"),
-                    layout: Some(&render_pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        buffers: &[RawMeshVertex::layout()],
-                        entry_point: "vs_main",
+        let model_position_bind_group_layout = render_ctx
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Model position bind group layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        min_binding_size: None,
+                        has_dynamic_offset: false,
                     },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: render_ctx.surface_config.format,
-                            blend: Some(wgpu::BlendState::REPLACE),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                        entry_point: "fs_main",
-                    }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
-                        cull_mode: None,
-                        strip_index_format: None,
-                        front_face: wgpu::FrontFace::Ccw,
-                        polygon_mode: wgpu::PolygonMode::Fill,
-                        unclipped_depth: false,
-                        conservative: false,
+                    count: None,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                }],
+            });
+
+        let model_position_bind_group = render_ctx
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Model position bind group"),
+                layout: &model_position_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: model_position_buffer.as_entire_binding(),
+                }],
+            });
+
+        let render_pipeline_layout = render_ctx
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Mesh render pipeline layout"),
+                push_constant_ranges: &[],
+                bind_group_layouts: &[camera_bind_group_layout, &model_position_bind_group_layout],
+            });
+
+        let render_pipeline = render_ctx
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Default render pipeline"),
+                layout: Some(&render_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    buffers: &[RawMeshVertex::layout()],
+                    entry_point: "vs_main",
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: render_ctx.surface_config.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    entry_point: "fs_main",
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    cull_mode: Some(Face::Back),
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: Texture::DEPTH_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: Default::default(),
+                    bias: wgpu::DepthBiasState {
+                        constant: 2,
+                        slope_scale: 2.0,
+                        clamp: 0.0,
                     },
-                    depth_stencil: Some(wgpu::DepthStencilState {
-                        format: Texture::DEPTH_FORMAT,
-                        depth_write_enabled: true,
-                        depth_compare: wgpu::CompareFunction::Less,
-                        stencil: Default::default(),
-                        bias: wgpu::DepthBiasState {
-                            constant: 2,
-                            slope_scale: 2.0,
-                            clamp: 0.0,
-                        },
-                    }),
-                    multisample: Default::default(),
-                    multiview: None,
-                });
+                }),
+                multisample: Default::default(),
+                multiview: None,
+            });
 
         Self {
             vertex_buffer,
@@ -161,12 +147,7 @@ impl MeshRenderer {
         }
     }
 
-    pub fn update_data(
-        &mut self,
-        vertices: &[MeshVertex],
-        indices: &[u32],
-        render_ctx: &RenderCtx,
-    ) {
+    pub fn update_data(&mut self, vertices: &[MeshVertex], indices: &[u32], render_ctx: &RenderCtx) {
         let (vertex_buffer, index_buffer) = create_vert_ind_buffers(vertices, indices, render_ctx);
         self.vertex_buffer = vertex_buffer;
         self.index_buffer = index_buffer;
@@ -175,11 +156,7 @@ impl MeshRenderer {
 }
 
 impl Renderer for MeshRenderer {
-    fn render<'a>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        camera_bind_group: &'a wgpu::BindGroup,
-    ) {
+    fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup) {
         render_pass.set_pipeline(&self.render_pipeline);
 
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -192,11 +169,7 @@ impl Renderer for MeshRenderer {
     }
 }
 
-fn create_vert_ind_buffers(
-    vertices: &[MeshVertex],
-    indices: &[u32],
-    render_ctx: &RenderCtx,
-) -> (wgpu::Buffer, wgpu::Buffer) {
+fn create_vert_ind_buffers(vertices: &[MeshVertex], indices: &[u32], render_ctx: &RenderCtx) -> (wgpu::Buffer, wgpu::Buffer) {
     let raw_vertices: Vec<RawMeshVertex> = vertices
         .iter()
         .map(|vertex| RawMeshVertex {

@@ -1,9 +1,10 @@
-use crate::engine::world::chunk::data::ChunkData;
-use crate::engine::world::chunk::local_location::{IndexedLocalLocation, LocalLocation};
-use crate::engine::world::chunk::CHUNK_SIZE;
-use crate::engine::world::voxel::Voxel;
 use cgmath::Vector3;
 use noise::{NoiseFn, Perlin};
+
+use crate::engine::world::chunk::data::ChunkData;
+use crate::engine::world::chunk::local_location::LocalLocation;
+use crate::engine::world::chunk::CHUNK_SIZE;
+use crate::engine::world::voxel::Voxel;
 
 pub fn get_chunk(world_seed: u32, chunk_position: Vector3<u32>) -> ChunkData {
     generate_perlin_terrain(world_seed, chunk_position)
@@ -16,26 +17,11 @@ pub fn generate_perlin_terrain(world_seed: u32, chunk_position: Vector3<u32>) ->
     let mut perlin = Perlin::new(world_seed);
 
     let octaves = vec![
-        NoiseLayer {
-            scale: 0.002,
-            weight: 1.5,
-        },
-        NoiseLayer {
-            scale: 0.007,
-            weight: 0.9,
-        },
-        NoiseLayer {
-            scale: 0.02,
-            weight: 0.3,
-        },
-        NoiseLayer {
-            scale: 0.07,
-            weight: 0.06,
-        },
-        NoiseLayer {
-            scale: 0.4,
-            weight: 0.03,
-        },
+        NoiseLayer { scale: 0.002, weight: 1.5 },
+        NoiseLayer { scale: 0.007, weight: 0.9 },
+        NoiseLayer { scale: 0.02, weight: 0.3 },
+        NoiseLayer { scale: 0.07, weight: 0.06 },
+        NoiseLayer { scale: 0.4, weight: 0.03 },
     ];
 
     // Fill empty chunk data with randomly selected voxels
@@ -50,18 +36,15 @@ pub fn generate_perlin_terrain(world_seed: u32, chunk_position: Vector3<u32>) ->
 
             let layered_perlin = perlin.get_layered(&octaves, [coords.x, coords.z]);
             let normalized_height = (layered_perlin + 1.0) / 2.0;
-            let height = 64.0 * normalized_height + 1.0;
+            let height = 16.0 * normalized_height + 1.0;
 
             v.ty = if coords.y < height {
                 {
                     if coords.y + 1.0 < height {
                         if coords.y + 6.0 < height {
-                            if perlin.get([coords.x * 0.25, coords.y * 0.4, coords.z * 0.25]) < -0.7
-                            {
+                            if perlin.get([coords.x * 0.25, coords.y * 0.4, coords.z * 0.25]) < -0.7 {
                                 4
-                            } else if perlin.get([coords.x * 0.3, coords.y * 0.3, coords.z * 0.3])
-                                < -0.7
-                            {
+                            } else if perlin.get([coords.x * 0.3, coords.y * 0.3, coords.z * 0.3]) < -0.7 {
                                 5
                             } else {
                                 3

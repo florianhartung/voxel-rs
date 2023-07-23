@@ -12,9 +12,7 @@ impl ChunkData {
             data: vec![voxel; super::CHUNK_SIZE.pow(3) as usize]
                 .into_boxed_slice()
                 .try_into()
-                .expect(
-                    "Size of boxed slice is expected to equal the size of ChunkData's data array",
-                ),
+                .expect("Size of boxed slice is expected to equal the size of ChunkData's data array"),
         }
     }
 
@@ -26,11 +24,7 @@ impl ChunkData {
         &self.data[IndexedLocalLocation::from(position)]
     }
 
-    pub fn get_neighboring_voxel(
-        &self,
-        pos: LocalLocation,
-        direction: &Direction,
-    ) -> Option<&Voxel> {
+    pub fn get_neighboring_voxel(&self, pos: LocalLocation, direction: &Direction) -> Option<&Voxel> {
         let neighbor = pos + direction.to_vec();
 
         neighbor.map(|x| self.get_voxel(x))

@@ -1,7 +1,7 @@
 use cgmath::Vector3;
 use strum_macros::EnumIter;
 
-#[derive(EnumIter)]
+#[derive(EnumIter, Copy, Clone, Debug)]
 pub enum Direction {
     XPos,
     XNeg,

@@ -1,8 +1,6 @@
 use cgmath::{Deg, Vector3};
 use winit::dpi::PhysicalSize;
-use winit::event::{
-    DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent,
-};
+use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -20,6 +18,7 @@ mod macros;
 mod frame_timer;
 mod rendering;
 mod starter;
+pub(crate) mod util;
 mod world;
 
 pub struct Engine {
@@ -52,9 +51,10 @@ impl Engine {
         );
         const WORLD_SEED: u32 = 2;
 
-        let chunks = (0..(8u32.pow(2)))
+        let side_length: u32 = 1;
+        let chunks = (0..(side_length.pow(2)))
             .map(|i| {
-                let chunk_pos = Vector3::new(i % 8, 0, i / 8);
+                let chunk_pos = Vector3::new(i % side_length, 0, i / side_length);
 
                 let chunk_data = generation::get_chunk(WORLD_SEED, chunk_pos);
 
@@ -80,7 +80,8 @@ impl Engine {
     fn render(&mut self) {
         let dt = self.frame_timer.get_dt();
 
-        self.camera_controller.update_camera(&mut self.camera, dt);
+        self.camera_controller
+            .update_camera(&mut self.camera, dt);
         self.camera.update_buffer(&self.render_ctx);
 
         let mut handle = self.render_ctx.start_rendering();
@@ -98,9 +99,7 @@ impl Engine {
         }
 
         match event {
-            key_press!(VirtualKeyCode::Escape) | close_requested!() => {
-                *control_flow = ControlFlow::ExitWithCode(0)
-            }
+            key_press!(VirtualKeyCode::Escape) | close_requested!() => *control_flow = ControlFlow::ExitWithCode(0),
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
@@ -137,7 +136,8 @@ impl Engine {
                 ..
             } => {
                 if self.mouse_pressed {
-                    self.camera_controller.process_mouse(delta.0, delta.1);
+                    self.camera_controller
+                        .process_mouse(delta.0, delta.1);
                 }
             }
             _ => {}
@@ -149,7 +149,8 @@ impl Engine {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(new_size) => {
                     self.render_ctx.resize(&new_size);
-                    self.camera.resize(new_size.width, new_size.height);
+                    self.camera
+                        .resize(new_size.width, new_size.height);
                     true
                 }
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
