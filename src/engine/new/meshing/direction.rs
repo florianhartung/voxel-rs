@@ -23,3 +23,9 @@ impl Direction {
         }
     }
 }
+
+impl From<Direction> for Vector3<i32> {
+    fn from(value: Direction) -> Self {
+        value.to_vec()
+    }
+}

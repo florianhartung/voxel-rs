@@ -43,7 +43,7 @@ macro_rules! key_press {
             },
             ..
         }
-    }
+    };
 }
 
 macro_rules! close_requested {
@@ -52,5 +52,5 @@ macro_rules! close_requested {
             event: WindowEvent::CloseRequested,
             ..
         }
-    }
+    };
 }

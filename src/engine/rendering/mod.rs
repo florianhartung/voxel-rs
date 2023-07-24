@@ -22,6 +22,7 @@ pub struct RenderHandle<'a> {
     clear_before_next_render: bool,
 }
 
+#[derive(Debug)]
 pub struct RenderCtx {
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,
@@ -42,8 +43,7 @@ impl RenderCtx {
         // # Safety
         // The surface needs to live as long as the window that created it.
         // This is safe because RenderState owns both
-        let surface = unsafe { instance.create_surface(&window) }
-            .expect("WGPU failed to create a surface from the window");
+        let surface = unsafe { instance.create_surface(&window) }.expect("WGPU failed to create a surface from the window");
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -99,13 +99,11 @@ impl RenderCtx {
     }
 
     pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
-        assert!(
-            new_size.width > 0 && new_size.height > 0,
-            "Window size must be greater than zero"
-        );
+        assert!(new_size.width > 0 && new_size.height > 0, "Window size must be greater than zero");
 
         (self.surface_config.width, self.surface_config.height) = (new_size.width, new_size.height);
-        self.surface.configure(&self.device, &self.surface_config);
+        self.surface
+            .configure(&self.device, &self.surface_config);
 
         self.depth_texture = Texture::new_depth_texture(&self.device, &self.surface_config);
     }
@@ -149,25 +147,27 @@ impl RenderHandle<'_> {
             (wgpu::LoadOp::Load, wgpu::LoadOp::Load)
         };
 
-        let mut render_pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.target_texture_view,
-                ops: wgpu::Operations {
-                    load: load_op,
-                    store: true,
-                },
-                resolve_target: None,
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.render_ctx.depth_texture.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: depth_load_op,
-                    store: true,
+        let mut render_pass = self
+            .encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.target_texture_view,
+                    ops: wgpu::Operations {
+                        load: load_op,
+                        store: true,
+                    },
+                    resolve_target: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.render_ctx.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: depth_load_op,
+                        store: true,
+                    }),
+                    stencil_ops: None,
                 }),
-                stencil_ops: None,
-            }),
-        });
+            });
         self.clear_before_next_render = false;
 
         renderer.render(&mut render_pass, &camera.bind_group);

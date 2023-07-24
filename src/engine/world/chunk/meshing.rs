@@ -11,7 +11,6 @@ use crate::engine::world::voxel::Voxel;
 
 pub fn generate_mesh_from_chunk_data(data: &ChunkData) -> Mesh {
     let mesh = generate_greedy_mesh(data);
-    dbg!(mesh.vertices.len());
 
     mesh
 }

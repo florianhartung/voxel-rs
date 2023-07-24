@@ -9,22 +9,18 @@ edition = "2021"
 winit = "0.28.3"
 wgpu = "0.16.0"
 bytemuck = { version = "1.13.1", features = ["derive"] }
-cgmath = "0.18.0"
-
+cgmath = { git = "https://github.com/rustgd/cgmath.git", features = ["bytemuck"] }
 pollster = "0.3.0"
-
 anyhow = "1.0.70"
-
 log = "0.4.17"
 env_logger = "0.10.0"
 fastrand = "1.9.0"
 timing = "0.2.3"
 itertools = "0.10.5"
-
 strum = "0.24.1"
 strum_macros = "0.24.3"
-
 noise = "0.8.2"
+static_assertions = "1.1.0"
 
 [profile.release]
 # enable debug for profiling

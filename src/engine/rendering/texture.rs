@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -7,10 +8,7 @@ pub struct Texture {
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-    pub fn new_depth_texture(
-        device: &wgpu::Device,
-        surface_config: &wgpu::SurfaceConfiguration,
-    ) -> Self {
+    pub fn new_depth_texture(device: &wgpu::Device, surface_config: &wgpu::SurfaceConfiguration) -> Self {
         let size = wgpu::Extent3d {
             width: surface_config.width,
             height: surface_config.height,
@@ -47,10 +45,6 @@ impl Texture {
             ..Default::default()
         });
 
-        Self {
-            texture,
-            view,
-            sampler,
-        }
+        Self { texture, view, sampler }
     }
 }
