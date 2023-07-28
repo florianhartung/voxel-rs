@@ -1,7 +1,7 @@
 use cgmath::Vector3;
 
-use crate::engine::new::location::{LocalChunkLocation, WithinBounds};
-use crate::engine::new::meshing::direction::Direction;
+use crate::engine::world::location::{LocalChunkLocation, WithinBounds};
+use crate::engine::world::meshing::direction::Direction;
 
 #[derive(Debug)]
 pub struct Quad {

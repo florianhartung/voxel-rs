@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use cgmath::Deg;
+use cgmath::{Deg, EuclideanSpace};
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -10,21 +10,18 @@ use winit::window::{Window, WindowBuilder};
 pub use starter::start;
 
 use crate::engine::frame_timer::FrameTimer;
-use crate::engine::new::chunk_manager::ChunkManager;
 use crate::engine::rendering::camera::{Camera, CameraController};
 use crate::engine::rendering::RenderCtx;
-use crate::engine::world::chunk::renderer::ChunkRenderer;
-use crate::engine::world::chunk::MeshedChunk;
+use crate::engine::world::chunk_manager::ChunkManager;
 
 #[macro_use]
 mod macros;
 mod frame_timer;
-pub mod new;
 mod rendering;
 mod starter;
 pub(crate) mod util;
 pub mod vector_utils;
-mod world;
+pub mod world;
 
 pub struct Engine {
     window: Window,
@@ -32,7 +29,6 @@ pub struct Engine {
     render_ctx: Rc<RefCell<RenderCtx>>,
 
     chunk_manager: ChunkManager,
-    chunks: Vec<(Box<MeshedChunk>, ChunkRenderer)>,
 
     camera: Camera,
     camera_controller: CameraController,
@@ -57,30 +53,14 @@ impl Engine {
         );
         const WORLD_SEED: u32 = 2;
 
-        // let side_length: u32 = 1;
-        // let chunks = (0..(side_length.pow(2)))
-        //     .map(|i| {
-        //         let chunk_pos = Vector3::new(i % side_length, 0, i / side_length);
-        //
-        //         let chunk_data = generation::get_chunk(WORLD_SEED, chunk_pos);
-        //
-        //         let chunk = Box::new(Chunk::new(chunk_data, chunk_pos).into_meshed());
-        //
-        //         let chunk_renderer = chunk.get_renderer(&render_ctx, &camera.bind_group_layout);
-        //
-        //         (chunk, chunk_renderer)
-        //     })
-        //     .collect();
-
-        let mut chunk_manager = ChunkManager::new();
-        chunk_manager.generate_all_chunks();
-        chunk_manager.generate_all_chunk_meshes(&render_ctx, &camera.bind_group_layout);
+        let mut chunk_manager = ChunkManager::new(camera.position.to_vec());
+        chunk_manager.generate_chunks();
+        chunk_manager.generate_chunk_meshes(&render_ctx, &camera.bind_group_layout);
 
         Self {
             window,
             frame_timer: FrameTimer::new(),
             render_ctx,
-            chunks: Vec::new(),
             camera,
             camera_controller: CameraController::new(30.0, 0.5),
             mouse_pressed: false,
@@ -97,15 +77,18 @@ impl Engine {
             .update_camera(&mut self.camera, dt);
         self.camera.update_buffer(&render_ctx);
 
-        let mut handle = render_ctx.start_rendering();
-        // self.chunks
-        //     .iter()
-        //     .for_each(|(_chunk, renderer)| handle.render(renderer, &self.camera));
-        handle.render(&self.chunk_manager, &self.camera);
+        self.chunk_manager
+            .update_player_location(self.camera.position.to_vec());
+        self.chunk_manager.generate_chunks();
+        self.chunk_manager
+            .generate_chunk_meshes(&self.render_ctx, &self.camera.bind_group_layout);
+        self.chunk_manager.unload_chunks();
 
+        let mut handle = render_ctx.start_rendering();
+        handle.render(&self.chunk_manager, &self.camera);
         handle.finish_rendering();
 
-        // println!("{:.2}fps", 1.0 / dt.as_secs_f32());
+        println!("{:.2}fps", 1.0 / dt.as_secs_f32());
     }
 
     fn handle_event(&mut self, event: Event<()>, control_flow: &mut ControlFlow) {

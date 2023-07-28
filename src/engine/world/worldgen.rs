@@ -1,8 +1,9 @@
+use cgmath::num_traits::Pow;
 use noise::{NoiseFn, Perlin};
 
-use crate::engine::new::chunk_data::ChunkData;
-use crate::engine::new::location::{ChunkLocation, LocalChunkLocation};
-use crate::engine::new::voxel_data::{VoxelData, VoxelType};
+use crate::engine::world::chunk_data::ChunkData;
+use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
+use crate::engine::world::voxel_data::{VoxelData, VoxelType};
 
 pub struct WorldGenerator {
     world_seed: u32,
@@ -14,12 +15,41 @@ impl WorldGenerator {
     }
 
     pub fn get_chunk_data_at(&self, chunk_location: ChunkLocation) -> ChunkData {
-        // ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Dirt))
-        generate_perlin_terrain(1, chunk_location)
+        // ChunkData::new_with_uniform_data(VoxelData::world(VoxelType::Dirt))
+        flat_perlin_terrain(1, chunk_location)
+        // perlin_3d(1, chunk_location)
     }
 }
 
-pub fn generate_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {
+pub fn perlin_3d(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {
+    let mut chunk_voxel_data = ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Air));
+    let mut perlin = Perlin::new(world_seed);
+    let mut perlin2 = Perlin::new(world_seed + 1);
+
+    LocalChunkLocation::iter().for_each(|pos| {
+        let coords = pos.to_f64() + chunk_location.to_world_location_f64();
+
+        let density = perlin.get((coords * 0.01).into());
+
+        if density < -0.2 {
+            let ty_threshold = (perlin2.get((coords * 0.001).into()) + 1.0) / 2.0;
+            let ty_threshold = ty_threshold.pow(5);
+            let ty_rand = fastrand::f64();
+
+            let ty = if ty_rand < ty_threshold {
+                VoxelType::Stone
+            } else {
+                VoxelType::Grass
+            };
+
+            chunk_voxel_data.get_voxel_mut(pos).ty = ty;
+        }
+    });
+
+    chunk_voxel_data
+}
+
+pub fn flat_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {
     // Create empty chunk data
     let mut chunk_voxel_data = ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Air));
 
@@ -35,7 +65,7 @@ pub fn generate_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -
 
     // Fill empty chunk data with randomly selected voxels
     LocalChunkLocation::iter().for_each(|pos| {
-        let coords = pos.to_f64() + chunk_location.to_world_position_f64();
+        let coords = pos.to_f64() + chunk_location.to_world_location_f64();
 
         let layered_perlin = perlin.get_layered(&octaves, [coords.x, coords.z]);
         let normalized_height = (layered_perlin + 1.0) / 2.0;

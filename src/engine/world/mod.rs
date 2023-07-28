@@ -1,5 +1,10 @@
 pub mod chunk;
-pub mod core;
-pub mod generation;
+pub mod chunk_data;
+pub mod chunk_manager;
+pub mod location;
 pub mod mesh;
-pub mod voxel;
+pub mod meshing;
+pub mod voxel_data;
+pub mod worldgen;
+
+pub const CHUNK_SIZE: usize = 32;

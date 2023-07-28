@@ -9,7 +9,7 @@ use winit::event::{ElementState, VirtualKeyCode};
 use crate::engine::rendering::RenderCtx;
 
 pub struct Camera {
-    position: Point3<f32>,
+    pub position: Point3<f32>,
     yaw: Rad<f64>,
     pitch: Rad<f64>,
     projection: Projection,
@@ -51,22 +51,21 @@ impl Camera {
                 contents: bytemuck::cast_slice(&[raw]),
             });
 
-        let bind_group_layout =
-            render_ctx
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("Camera bind group layout"),
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        ty: BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        count: None,
-                    }],
-                });
+        let bind_group_layout = render_ctx
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Camera bind group layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    count: None,
+                }],
+            });
 
         let bind_group = render_ctx
             .device
@@ -124,13 +123,7 @@ pub struct Projection {
 }
 
 impl Projection {
-    pub fn new<F: Into<Rad<f32>>>(
-        width: u32,
-        height: u32,
-        fov_y: F,
-        z_near: f32,
-        z_far: f32,
-    ) -> Self {
+    pub fn new<F: Into<Rad<f32>>>(width: u32, height: u32, fov_y: F, z_near: f32, z_far: f32) -> Self {
         Self {
             aspect: width as f32 / height as f32,
             fov_y: fov_y.into(),
@@ -144,8 +137,7 @@ impl Projection {
     }
 
     pub fn build_proj_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX
-            * cgmath::perspective(self.fov_y, self.aspect, self.z_near, self.z_far)
+        OPENGL_TO_WGPU_MATRIX * cgmath::perspective(self.fov_y, self.aspect, self.z_near, self.z_far)
     }
 }
 
@@ -227,25 +219,18 @@ impl CameraController {
         let forward = Vector3::new(yaw_cos as f32, 0.0, yaw_sin as f32).normalize();
         let right = Vector3::new(-yaw_sin as f32, 0.0, yaw_cos as f32).normalize();
 
-        let forward_speed = if self.forward { self.speed } else { 0.0 }
-            + if self.backward { -self.speed } else { 0.0 };
-        let right_speed =
-            if self.right { self.speed } else { 0.0 } + if self.left { -self.speed } else { 0.0 };
+        let forward_speed = if self.forward { self.speed } else { 0.0 } + if self.backward { -self.speed } else { 0.0 };
+        let right_speed = if self.right { self.speed } else { 0.0 } + if self.left { -self.speed } else { 0.0 };
 
         camera.position += forward * forward_speed * dt;
         camera.position += right * right_speed * dt;
 
-        camera.position.y += if self.up { self.speed * dt } else { 0.0 }
-            + if self.down { -self.speed * dt } else { 0.0 };
+        camera.position.y += if self.up { self.speed * dt } else { 0.0 } + if self.down { -self.speed * dt } else { 0.0 };
 
         const FACTOR: f64 = 0.5;
 
-        camera.yaw += Rad(FACTOR * self.rotate_horizontal + self.last_rotate_horizontal)
-            * self.sensitivity as f64
-            * dt as f64;
-        camera.pitch += Rad(FACTOR * (-self.rotate_vertical) + -self.last_rotate_vertical)
-            * self.sensitivity as f64
-            * dt as f64;
+        camera.yaw += Rad(FACTOR * self.rotate_horizontal + self.last_rotate_horizontal) * self.sensitivity as f64 * dt as f64;
+        camera.pitch += Rad(FACTOR * (-self.rotate_vertical) + -self.last_rotate_vertical) * self.sensitivity as f64 * dt as f64;
 
         self.last_rotate_horizontal = (1.0 - FACTOR) * self.rotate_horizontal;
         self.last_rotate_vertical = (1.0 - FACTOR) * self.rotate_vertical;

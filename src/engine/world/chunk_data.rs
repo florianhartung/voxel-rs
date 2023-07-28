@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Formatter};
 
-use crate::engine::new::location::{LocalChunkLocation, OutsideBounds, WithinBounds};
-use crate::engine::new::voxel_data::{VoxelData, VoxelType};
-use crate::engine::new::CHUNK_SIZE;
+use crate::engine::world::location::{LocalChunkLocation, OutsideBounds, WithinBounds};
+use crate::engine::world::voxel_data::{VoxelData, VoxelType};
+use crate::engine::world::CHUNK_SIZE;
 
 pub struct ChunkData {
     voxels: Box<[VoxelData; CHUNK_SIZE.pow(3)]>,

@@ -1,12 +1,12 @@
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::ops::{Add, Deref};
+use std::ops::{Add, Deref, Sub};
 
 use cgmath::Vector3;
 use itertools::iproduct;
 
-use crate::engine::new::CHUNK_SIZE;
 use crate::engine::vector_utils::RemEuclid;
+use crate::engine::world::CHUNK_SIZE;
 
 /// An absolute location in the world. It contains a chunk location and a local chunk location encoded into a single Vector3.
 #[derive(Copy, Clone, Debug)]
@@ -41,14 +41,46 @@ impl ChunkLocation {
         Self(Vector3::new(location.x.into(), location.y.into(), location.z.into()))
     }
 
-    pub fn to_world_position_f32(&self) -> Vector3<f32> {
+    pub fn from_world_location_f32(location: Vector3<f32>) -> Self {
+        Self(Vector3::new(
+            (location.x.floor() as i32) / CHUNK_SIZE as i32,
+            (location.y.floor() as i32) / CHUNK_SIZE as i32,
+            (location.z.floor() as i32) / CHUNK_SIZE as i32,
+        ))
+    }
+
+    pub fn from_world_location_f64(location: Vector3<f64>) -> Self {
+        Self(Vector3::new(
+            (location.x.floor() as i32) / CHUNK_SIZE as i32,
+            (location.y.floor() as i32) / CHUNK_SIZE as i32,
+            (location.z.floor() as i32) / CHUNK_SIZE as i32,
+        ))
+    }
+
+    pub fn to_world_location_f32(&self) -> Vector3<f32> {
         let scaled = self.0 * (CHUNK_SIZE as i32);
         Vector3::new(scaled.x as f32, scaled.y as f32, scaled.z as f32)
     }
 
-    pub fn to_world_position_f64(&self) -> Vector3<f64> {
+    pub fn to_world_location_f64(&self) -> Vector3<f64> {
         let scaled = self.0 * (CHUNK_SIZE as i32);
         Vector3::new(scaled.x as f64, scaled.y as f64, scaled.z as f64)
+    }
+}
+
+impl Add for ChunkLocation {
+    type Output = ChunkLocation;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        ChunkLocation::new(self.0 + rhs.0)
+    }
+}
+
+impl Sub for ChunkLocation {
+    type Output = ChunkLocation;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        ChunkLocation::new(self.0 - rhs.0)
     }
 }
 
@@ -63,7 +95,7 @@ impl Deref for ChunkLocation {
 /// A local location inside of a specific chunk.
 /// The generic type `State` signals whether it is confirmed that the location is within the chunk boundaries defined by [super::CHUNK_SIZE].
 /// It can be either one of [WithinBounds] or [OutsideBounds].
-/// When creating a new object, the State=OutsideBounds is assumed. To get a State=WithinBounds the method [LocalChunkLocation::try_into_checked] can be called.
+/// When creating a world object, the State=OutsideBounds is assumed. To get a State=WithinBounds the method [LocalChunkLocation::try_into_checked] can be called.
 #[derive(Copy, Clone, Debug)]
 pub struct LocalChunkLocation<State = OutsideBounds> {
     location: Vector3<i32>,

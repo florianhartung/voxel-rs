@@ -5,15 +5,15 @@ use std::rc::Rc;
 use cgmath::Vector3;
 use strum::IntoEnumIterator;
 
-use crate::engine::new::chunk::Chunk;
-use crate::engine::new::chunk_data::ChunkData;
-use crate::engine::new::location::{ChunkLocation, LocalChunkLocation};
-use crate::engine::new::mesh::{Mesh, Vertex};
-use crate::engine::new::meshing::direction::Direction;
-use crate::engine::new::meshing::quad::{FaceData, Quad};
-use crate::engine::new::voxel_data::VoxelType;
 use crate::engine::rendering::RenderCtx;
 use crate::engine::vector_utils::AbsValue;
+use crate::engine::world::chunk::Chunk;
+use crate::engine::world::chunk_data::ChunkData;
+use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
+use crate::engine::world::mesh::{Mesh, Vertex};
+use crate::engine::world::meshing::direction::Direction;
+use crate::engine::world::meshing::quad::{FaceData, Quad};
+use crate::engine::world::voxel_data::VoxelType;
 
 pub mod direction;
 pub mod quad;
@@ -42,7 +42,7 @@ impl ChunkMeshGenerator {
         quads.iter().for_each(|quad| {
             let base_index = vertices.len() as u32;
 
-            let mut pos = quad.position.to_f32() + location.to_world_position_f32();
+            let mut pos = quad.position.to_f32() + location.to_world_location_f32();
             let direction = quad
                 .direction
                 .to_vec()
