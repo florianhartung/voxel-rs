@@ -12,6 +12,7 @@ var<uniform> camera: CameraUniform;
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
+    @location(2) normal: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -27,7 +28,10 @@ fn vs_main(
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4((model.position), 1.0) ;
 
-    out.color = model.color;
+    var brightness: f32;
+    brightness = dot(model.normal, vec3(1.0, 0.5, 0.7));
+
+    out.color = brightness * model.color;
     return out;
 }
 

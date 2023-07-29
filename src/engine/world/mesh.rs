@@ -56,15 +56,20 @@ impl Mesh {
 pub struct Vertex {
     position: Vector3<f32>,
     color: Vector3<f32>,
+    direction: Vector3<f32>,
 }
 
 impl Vertex {
-    pub fn new(position: Vector3<f32>, color: Vector3<f32>) -> Self {
-        Self { position, color }
+    pub fn new(position: Vector3<f32>, color: Vector3<f32>, direction: Vector3<f32>) -> Self {
+        Self {
+            position,
+            color,
+            direction,
+        }
     }
 
     pub fn layout<'a>() -> wgpu::VertexBufferLayout<'a> {
-        const ATTRIBUTES: [wgpu::VertexAttribute; 2] = vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+        const ATTRIBUTES: [wgpu::VertexAttribute; 3] = vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3];
 
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as _,

@@ -62,10 +62,10 @@ impl ChunkMeshGenerator {
                 pos += direction;
             }
 
-            vertices.push(Vertex::new(pos, quad.data.color));
-            vertices.push(Vertex::new(pos + axis1, quad.data.color));
-            vertices.push(Vertex::new(pos + axis2, quad.data.color));
-            vertices.push(Vertex::new(pos + axis1 + axis2, quad.data.color));
+            vertices.push(Vertex::new(pos, quad.data.color, direction));
+            vertices.push(Vertex::new(pos + axis1, quad.data.color, direction));
+            vertices.push(Vertex::new(pos + axis2, quad.data.color, direction));
+            vertices.push(Vertex::new(pos + axis1 + axis2, quad.data.color, direction));
 
             {
                 if is_backside {

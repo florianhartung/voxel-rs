@@ -172,6 +172,48 @@ impl RenderHandle<'_> {
 
         renderer.render(&mut render_pass, &camera.bind_group);
     }
+
+    pub fn render2d<T: Renderer2D>(&mut self, renderer: &mut T) {
+        let (load_op, depth_load_op) = if self.clear_before_next_render {
+            (
+                wgpu::LoadOp::Clear(wgpu::Color {
+                    r: 0.4941,
+                    g: 0.6627,
+                    b: 1.0,
+                    a: 1.0,
+                }),
+                wgpu::LoadOp::Clear(1.0),
+            )
+        } else {
+            (wgpu::LoadOp::Load, wgpu::LoadOp::Load)
+        };
+
+        let mut render_pass = self
+            .encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.target_texture_view,
+                    ops: wgpu::Operations {
+                        load: load_op,
+                        store: true,
+                    },
+                    resolve_target: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.render_ctx.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: depth_load_op,
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
+            });
+        self.clear_before_next_render = false;
+
+        renderer.render(&mut render_pass);
+    }
+
     pub fn finish_rendering(self) {} // Here self is dropped
 }
 
@@ -189,4 +231,8 @@ impl Drop for RenderHandle<'_> {
 
 pub trait Renderer {
     fn render<'a>(&'a self, _: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup);
+}
+
+pub trait Renderer2D {
+    fn render<'a>(&'a mut self, _: &mut wgpu::RenderPass<'a>);
 }

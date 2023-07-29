@@ -18,7 +18,7 @@ const LOAD_DISTANCE: i32 = RENDER_DISTANCE + 2;
 const UNLOAD_DISTANCE: i32 = RENDER_DISTANCE + 4;
 
 pub struct ChunkManager {
-    chunks: HashMap<ChunkLocation, Chunk>,
+    pub chunks: HashMap<ChunkLocation, Chunk>,
     chunk_generator: WorldGenerator,
     last_player_position: ChunkLocation,
     chunk_generate_queue: VecDeque<ChunkLocation>,
