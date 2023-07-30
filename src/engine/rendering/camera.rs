@@ -39,7 +39,9 @@ impl Camera {
         P: Into<Rad<f64>>,
         F: Into<Rad<f32>>,
     {
+        let position = position.into();
         let raw = RawCamera {
+            position: [position.x, position.y, position.z, 0.0],
             view_proj: [[0.0f32; 4]; 4],
         };
 
@@ -79,7 +81,7 @@ impl Camera {
             });
 
         Camera {
-            position: position.into(),
+            position,
             yaw: yaw.into(),
             pitch: pitch.into(),
             projection: Projection::new(width, height, fov_y, z_near, z_far),
@@ -103,6 +105,7 @@ impl Camera {
         );
         let proj = self.projection.build_proj_matrix();
 
+        self.raw.position = [self.position.x, self.position.y, self.position.z, 0.0];
         self.raw.view_proj = (proj * view).into();
 
         render_ctx
@@ -251,6 +254,7 @@ impl CameraController {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RawCamera {
+    pub position: [f32; 4],
     pub view_proj: [[f32; 4]; 4],
 }
 

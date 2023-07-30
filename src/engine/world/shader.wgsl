@@ -1,4 +1,5 @@
 struct CameraUniform {
+	position: vec4<f32>,
     view_proj: mat4x4<f32>,
 }
 
@@ -31,7 +32,11 @@ fn vs_main(
     var brightness: f32;
     brightness = dot(model.normal, vec3(1.0, 0.5, 0.7));
 
-    out.color = brightness * model.color;
+	var fog_dist: f32;
+	fog_dist = distance(camera.position.xyz, model.position);
+	var fog: f32 = 1.0 - max(0.0, min(1.0, pow(fog_dist / (24.0*32.0), 2.0)));
+
+    out.color = mix(vec3(0.4941, 0.6627, 1.0), brightness * model.color, fog);
     return out;
 }
 

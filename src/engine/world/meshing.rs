@@ -6,7 +6,7 @@ use cgmath::Vector3;
 use strum::IntoEnumIterator;
 
 use crate::engine::rendering::RenderCtx;
-use crate::engine::vector_utils::AbsValue;
+use crate::engine::vector_utils::{AbsValue, RemEuclid};
 use crate::engine::world::chunk::Chunk;
 use crate::engine::world::chunk_data::ChunkData;
 use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
@@ -14,6 +14,7 @@ use crate::engine::world::mesh::{Mesh, Vertex};
 use crate::engine::world::meshing::direction::Direction;
 use crate::engine::world::meshing::quad::{FaceData, Quad};
 use crate::engine::world::voxel_data::VoxelType;
+use crate::engine::world::CHUNK_SIZE;
 
 pub mod direction;
 pub mod quad;
@@ -30,10 +31,12 @@ impl ChunkMeshGenerator {
         chunks: &HashMap<ChunkLocation, Chunk>,
     ) -> Mesh {
         let quads = Self::generate_culled_mesh(
+            location,
             &chunks
                 .get(&location)
                 .expect("Can't generate a mesh for a that does not exist")
                 .data,
+            chunks,
         );
 
         let mut vertices: Vec<Vertex> = Vec::new();
@@ -81,21 +84,59 @@ impl ChunkMeshGenerator {
         Mesh::new(render_ctx, camera_bind_group_layout, vertices, indices)
     }
 
-    pub fn generate_culled_mesh(data: &ChunkData) -> Vec<Quad> {
+    pub fn generate_culled_mesh(
+        current_location: ChunkLocation,
+        data: &ChunkData,
+        all_chunks: &HashMap<ChunkLocation, Chunk>,
+    ) -> Vec<Quad> {
         let mut quads = Vec::new();
 
         LocalChunkLocation::iter()
             .filter(|&pos| data.get_voxel(pos).ty != VoxelType::Air)
             .for_each(|pos| {
                 for dir in Direction::iter() {
-                    let neighbor_voxel = (pos + dir).try_into_checked();
+                    let neighbor_voxel_location = pos + dir;
 
-                    if neighbor_voxel
-                        .filter(|&x| data.get_voxel(x).ty != VoxelType::Air)
-                        .is_none()
-                    {
-                        quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
+                    if let Some(same_chunk_neighbor) = neighbor_voxel_location.try_into_checked() {
+                        if data.get_voxel(same_chunk_neighbor).ty == VoxelType::Air {
+                            quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
+                        }
+                    } else {
+                        if let Some(chunk) = all_chunks.get(&ChunkLocation::new(*current_location + dir.to_vec())) {
+                            let neighbor_local = LocalChunkLocation::new(neighbor_voxel_location.rem_euclid(CHUNK_SIZE as i32))
+                                .try_into_checked()
+                                .expect("aa");
+
+                            if chunk.data.get_voxel(neighbor_local).ty == VoxelType::Air {
+                                quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
+                            }
+                        } else {
+                            println!("wtf");
+                        }
                     }
+
+                    // if let Some(chunk) = all_chunks.get(&neighbor_chunk_location) {
+                    //     if chunk.data.get_voxel(neighbor_voxel_location).ty == VoxelType::Air {
+                    //         quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
+                    //     }
+                    // } else {
+                    //     quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
+                    // }
+
+                    // if let Some(neighbor_location) = neighbor_voxel {
+                    //     if data.get_voxel(neighbor_location).ty == VoxelType::Air {
+                    //         quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
+                    //     }
+                    // } else {
+                    //     let (neighbor_chunk_location, local_pos) = WorldLocation::new(current_location, pos + dir).separate();
+                    //
+                    //     if let Some(chunk) = all_chunks.get(&neighbor_chunk_location) {
+                    //         // in another chunk
+                    //         if chunk.data.get_voxel(local_pos).ty == VoxelType::Air {
+                    //             quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
+                    //         }
+                    //     }
+                    // }
                 }
             });
 
