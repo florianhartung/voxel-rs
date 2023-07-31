@@ -18,7 +18,7 @@ pub struct Mesh {
 
 impl Debug for Mesh {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Mesh {{renderer: {:?}", self.renderer)
+        write!(f, "Mesh{{renderer: {:?}}}", self.renderer)
     }
 }
 

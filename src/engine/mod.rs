@@ -14,6 +14,7 @@ use crate::engine::frame_timer::FrameTimer;
 use crate::engine::imgui_overlay::{ImguiOverlay, PerFrameStats};
 use crate::engine::rendering::camera::{Camera, CameraController};
 use crate::engine::rendering::RenderCtx;
+use crate::engine::timing::TimerManager;
 use crate::engine::world::chunk_manager::ChunkManager;
 
 #[macro_use]
@@ -22,6 +23,7 @@ mod frame_timer;
 mod imgui_overlay;
 mod rendering;
 mod starter;
+mod timing;
 pub(crate) mod util;
 pub mod vector_utils;
 pub mod world;
@@ -38,6 +40,7 @@ pub struct Engine {
     mouse_pressed: bool,
 
     imgui_overlay: ImguiOverlay,
+    timer: TimerManager,
 }
 
 impl Engine {
@@ -64,15 +67,19 @@ impl Engine {
 
         let imgui_overlay = ImguiOverlay::new(render_ctx.clone(), &window);
 
+        let mut timer = TimerManager::new();
+        timer.start("frame");
+
         Self {
             window,
             frame_timer: FrameTimer::new(),
             render_ctx,
             camera,
-            camera_controller: CameraController::new(30.0, 0.5),
+            camera_controller: CameraController::new(200.0, 0.5),
             mouse_pressed: false,
             chunk_manager,
             imgui_overlay,
+            timer,
         }
     }
 
@@ -80,38 +87,63 @@ impl Engine {
         let render_ctx = self.render_ctx.borrow();
 
         let dt = self.frame_timer.get_dt();
+        let dt_n = self.timer.end_restart("frame");
 
+        self.chunk_manager.render_distance = self.imgui_overlay.render_distance;
+
+        self.timer.start("update_camera");
         self.camera_controller
             .update_camera(&mut self.camera, dt);
         self.camera.update_buffer(&render_ctx);
+        self.timer.end("update_camera");
 
+        self.timer.start("chunk_manager");
         self.chunk_manager
             .update_player_location(self.camera.position.to_vec());
+
+        self.timer.start("chunk_manager_generate");
         self.chunk_manager.generate_chunks();
+        self.timer.end("chunk_manager_generate");
+
+        self.timer.start("chunk_manager_meshing");
         self.chunk_manager
             .generate_chunk_meshes(&self.render_ctx, &self.camera.bind_group_layout);
+        self.timer.end("chunk_manager_meshing");
+
+        self.timer.start("chunk_manager_unloading");
         self.chunk_manager.unload_chunks();
+        self.timer.end("chunk_manager_unloading");
+        self.timer.end("chunk_manager");
 
         let stats = PerFrameStats {
             fps: 1.0 / dt.as_secs_f32(),
             last_frame_time: dt.as_secs_f32() * 1000.0,
             position: self.camera.position.to_vec(),
             num_chunks: self.chunk_manager.chunks.len() as u32,
-            num_vertices: 0,
-            num_triangles: 0,
+            num_vertices: self.chunk_manager.total_vertices,
+            num_triangles: self.chunk_manager.total_triangles,
+            total_voxel_data_size: self.chunk_manager.total_voxel_data_size,
+            total_mesh_data_size: self.chunk_manager.total_mesh_data_size,
+            currently_rendered_chunk_radius: self.chunk_manager.current_chunk_mesh_radius - 1,
         };
 
+        self.timer.start("imgui_prepare");
         self.imgui_overlay
-            .prepare_render(&self.window, stats);
+            .prepare_render(&self.window, stats, &mut self.timer);
+        self.timer.end("imgui_prepare");
 
         let mut handle = render_ctx.start_rendering();
+        self.timer.start("render_3d");
         handle.render(&self.chunk_manager, &self.camera);
+        self.timer.end("render_3d");
 
+        self.timer.start("render_ui");
         handle.render2d(&mut self.imgui_overlay);
+        self.timer.end("render_ui");
 
+        self.timer.start("render_final");
         handle.finish_rendering();
-
-        println!("{:.2}fps", 1.0 / dt.as_secs_f32());
+        self.timer.end("render_final");
     }
 
     fn handle_event(&mut self, event: Event<()>, control_flow: &mut ControlFlow) {

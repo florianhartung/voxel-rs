@@ -34,7 +34,7 @@ impl ChunkMeshGenerator {
             location,
             &chunks
                 .get(&location)
-                .expect("Can't generate a mesh for a that does not exist")
+                .expect("Can't generate a mesh for a chunk that does not exist")
                 .data,
             chunks,
         );
@@ -111,7 +111,7 @@ impl ChunkMeshGenerator {
                                 quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
                             }
                         } else {
-                            println!("wtf");
+                            // println!("wtf");
                         }
                     }
 

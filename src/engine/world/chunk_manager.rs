@@ -1,21 +1,19 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
+use std::mem;
 use std::rc::Rc;
 
 use cgmath::Vector3;
-use itertools::iproduct;
+use itertools::{iproduct, Itertools};
 use wgpu::{BindGroup, RenderPass};
 
 use crate::engine::rendering::{RenderCtx, Renderer};
 use crate::engine::world::chunk::Chunk;
 use crate::engine::world::location::ChunkLocation;
 use crate::engine::world::meshing::ChunkMeshGenerator;
+use crate::engine::world::voxel_data::VoxelData;
 use crate::engine::world::worldgen::WorldGenerator;
-
-const RENDER_DISTANCE: i32 = 16;
-const LOAD_DISTANCE: i32 = RENDER_DISTANCE + 2;
-
-const UNLOAD_DISTANCE: i32 = RENDER_DISTANCE + 4;
+use crate::engine::world::CHUNK_SIZE;
 
 pub struct ChunkManager {
     pub chunks: HashMap<ChunkLocation, Chunk>,
@@ -24,7 +22,14 @@ pub struct ChunkManager {
     chunk_generate_queue: VecDeque<ChunkLocation>,
     chunk_mesh_queue: VecDeque<ChunkLocation>,
     current_chunk_generate_radius: i32,
-    current_chunk_mesh_radius: i32,
+    pub current_chunk_mesh_radius: i32,
+
+    pub total_vertices: usize,
+    pub total_triangles: usize,
+    pub total_voxel_data_size: usize,
+    pub total_mesh_data_size: usize,
+
+    pub render_distance: i32,
 }
 
 impl ChunkManager {
@@ -39,6 +44,11 @@ impl ChunkManager {
             chunk_mesh_queue: VecDeque::new(),
             current_chunk_generate_radius: 0,
             current_chunk_mesh_radius: 0,
+            total_vertices: 0,
+            total_triangles: 0,
+            total_voxel_data_size: 0,
+            total_mesh_data_size: 0,
+            render_distance: 16,
         }
     }
 
@@ -52,10 +62,11 @@ impl ChunkManager {
     }
 
     pub fn generate_chunks(&mut self) {
+        let load_distance = self.render_distance - 1;
         let last_player_position = self.last_player_position;
 
         if self.chunk_generate_queue.is_empty() {
-            if self.current_chunk_generate_radius < LOAD_DISTANCE {
+            if self.current_chunk_generate_radius < load_distance {
                 self.current_chunk_generate_radius += 1;
 
                 let radius = self.current_chunk_generate_radius;
@@ -85,8 +96,10 @@ impl ChunkManager {
     }
 
     pub fn generate_chunk_meshes(&mut self, render_ctx: &Rc<RefCell<RenderCtx>>, camera_bind_group_layout: &wgpu::BindGroupLayout) {
+        let mesh_distance = self.render_distance;
+
         if self.chunk_mesh_queue.is_empty() {
-            if self.current_chunk_mesh_radius < RENDER_DISTANCE && self.current_chunk_mesh_radius + 1 < self.current_chunk_generate_radius {
+            if self.current_chunk_mesh_radius < mesh_distance && self.current_chunk_mesh_radius + 1 < self.current_chunk_generate_radius {
                 self.current_chunk_mesh_radius += 1;
 
                 let radius = self.current_chunk_mesh_radius;
@@ -109,6 +122,11 @@ impl ChunkManager {
         let mut count = 0;
         while let Some(loc) = self.chunk_mesh_queue.pop_back() {
             let mesh = ChunkMeshGenerator::generate_mesh(render_ctx.clone(), camera_bind_group_layout, loc, &self.chunks);
+
+            self.total_vertices += mesh.vertices.len();
+            self.total_triangles += mesh.indices.len() / 3;
+            self.total_mesh_data_size += mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(&mesh.vertices.as_slice());
+
             self.chunks
                 .get_mut(&loc)
                 .expect("Can not insert mesh into a non-existing chunk")
@@ -122,18 +140,34 @@ impl ChunkManager {
     }
 
     pub fn unload_chunks(&mut self) {
-        self.chunks.retain(|location, _| {
-            let location_relative_to_player = self.last_player_position - *location;
-            (-UNLOAD_DISTANCE..=UNLOAD_DISTANCE).contains(&location_relative_to_player.x)
-                && (-UNLOAD_DISTANCE..=UNLOAD_DISTANCE).contains(&location_relative_to_player.y)
-                && (-UNLOAD_DISTANCE..=UNLOAD_DISTANCE).contains(&location_relative_to_player.z)
-        });
+        let unload_distance = self.render_distance;
+
+        let a: Vec<ChunkLocation> = self.chunks.keys().copied().collect_vec();
+        for loc in a {
+            let location_relative_to_player = self.last_player_position - loc;
+
+            if !((-unload_distance..=unload_distance).contains(&location_relative_to_player.x)
+                && (-unload_distance..=unload_distance).contains(&location_relative_to_player.y)
+                && (-unload_distance..=unload_distance).contains(&location_relative_to_player.z))
+            {
+                let chunk = self.chunks.remove(&loc).expect("wtf");
+
+                if let Some(mesh) = chunk.mesh {
+                    self.total_vertices -= mesh.vertices.len();
+                    self.total_triangles -= mesh.indices.len() / 3;
+                    self.total_mesh_data_size -= mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(&mesh.vertices.as_slice());
+                }
+
+                self.total_voxel_data_size -= CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
+            }
+        }
     }
 
     fn generate_new(&mut self, location: ChunkLocation) {
         let chunk_data = self.chunk_generator.get_chunk_data_at(location);
         let chunk = Chunk::new(location, chunk_data);
         self.chunks.insert(location, chunk);
+        self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
     }
 }
 

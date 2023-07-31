@@ -11,6 +11,7 @@ use winit::event::Event;
 use winit::window::Window;
 
 use crate::engine::rendering::{RenderCtx, Renderer2D};
+use crate::engine::timing::TimerManager;
 
 pub struct ImguiOverlay {
     render_ctx: Rc<RefCell<RenderCtx>>,
@@ -19,6 +20,8 @@ pub struct ImguiOverlay {
     renderer: Renderer,
 
     last_fps_counts: VecDeque<f32>,
+
+    pub render_distance: i32,
 }
 
 impl ImguiOverlay {
@@ -59,6 +62,7 @@ impl ImguiOverlay {
             renderer,
             render_ctx,
             last_fps_counts: VecDeque::with_capacity(60),
+            render_distance: 16,
         }
     }
 
@@ -67,7 +71,7 @@ impl ImguiOverlay {
             .handle_event(self.imgui.io_mut(), window, event)
     }
 
-    pub fn prepare_render(&mut self, window: &Window, stats: PerFrameStats) {
+    pub fn prepare_render(&mut self, window: &Window, stats: PerFrameStats, timer: &mut TimerManager) {
         if self.last_fps_counts.len() == self.last_fps_counts.capacity() {
             self.last_fps_counts.pop_front();
         }
@@ -89,10 +93,48 @@ impl ImguiOverlay {
                 .movable(false)
                 .draw_background(false)
                 .build(|| {
-                    ui.text(format!("FPS: {:.1} ({:.2}ms)", average_fps, 1000.0 / average_fps));
-                    ui.text(format!("V: {}  T: {}", stats.num_vertices, stats.num_triangles));
-                    ui.text(format!("{:?}", stats.position));
-                    ui.text(format!("Chunks: {}", stats.num_chunks));
+                    ui.tree_node_config("General")
+                        .bullet(false)
+                        .default_open(true)
+                        .build(|| {
+                            ui.text(format!("FPS: {:.1} ({:.2}ms)", average_fps, 1000.0 / average_fps));
+                            ui.text(format!("Location: {:?}", stats.position));
+                        });
+
+                    ui.tree_node_config("Memory")
+                        .bullet(false)
+                        .default_open(true)
+                        .build(|| {
+                            ui.text(format!("Voxel data: {}MB", stats.total_voxel_data_size / 2_i32.pow(20) as usize));
+                            ui.text(format!("Mesh data: {}MB", stats.total_mesh_data_size / 2_i32.pow(20) as usize));
+                        });
+
+                    ui.tree_node_config("Rendering")
+                        .default_open(true)
+                        .bullet(false)
+                        .build(|| {
+                            ui.input_int("Render distance", &mut self.render_distance)
+                                .build();
+                            ui.text(format!(
+                                "Currently rendered chunk radius: {}",
+                                stats.currently_rendered_chunk_radius
+                            ));
+                            ui.text(format!("V: {}  T: {}", stats.num_vertices, stats.num_triangles));
+                            ui.text(format!("Chunks: {}", stats.num_chunks));
+                        });
+
+                    ui.tree_node_config("Timing")
+                        .default_open(true)
+                        .bullet(false)
+                        .build(|| {
+                            timer
+                                .get_all()
+                                .iter()
+                                .for_each(|(name, duration_sec)| ui.text(format!("{}: {:.2}ms", name, duration_sec * 1000.0)));
+                            timer.clear();
+                        });
+
+                    ui.show_demo_window(&mut false);
                 });
         }
 
@@ -118,7 +160,10 @@ pub struct PerFrameStats {
     pub fps: f32,
     pub last_frame_time: f32,
     pub num_chunks: u32,
-    pub num_vertices: u32,
-    pub num_triangles: u32,
+    pub num_vertices: usize,
+    pub num_triangles: usize,
     pub position: Vector3<f32>,
+    pub total_voxel_data_size: usize,
+    pub total_mesh_data_size: usize,
+    pub currently_rendered_chunk_radius: i32,
 }
