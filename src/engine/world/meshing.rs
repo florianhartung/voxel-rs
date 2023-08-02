@@ -111,32 +111,9 @@ impl ChunkMeshGenerator {
                                 quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
                             }
                         } else {
-                            // println!("wtf");
+                            eprintln!("Neighbor chunk's data is not generated yet.")
                         }
                     }
-
-                    // if let Some(chunk) = all_chunks.get(&neighbor_chunk_location) {
-                    //     if chunk.data.get_voxel(neighbor_voxel_location).ty == VoxelType::Air {
-                    //         quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
-                    //     }
-                    // } else {
-                    //     quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
-                    // }
-
-                    // if let Some(neighbor_location) = neighbor_voxel {
-                    //     if data.get_voxel(neighbor_location).ty == VoxelType::Air {
-                    //         quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
-                    //     }
-                    // } else {
-                    //     let (neighbor_chunk_location, local_pos) = WorldLocation::new(current_location, pos + dir).separate();
-                    //
-                    //     if let Some(chunk) = all_chunks.get(&neighbor_chunk_location) {
-                    //         // in another chunk
-                    //         if chunk.data.get_voxel(local_pos).ty == VoxelType::Air {
-                    //             quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
-                    //         }
-                    //     }
-                    // }
                 }
             });
 

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::vec_deque::VecDeque;
+use std::collections::HashMap;
 use std::mem;
 use std::rc::Rc;
 
@@ -30,6 +31,7 @@ pub struct ChunkManager {
     pub total_mesh_data_size: usize,
 
     pub render_distance: i32,
+    pub render_empty_chunks: bool,
 }
 
 impl ChunkManager {
@@ -49,6 +51,7 @@ impl ChunkManager {
             total_voxel_data_size: 0,
             total_mesh_data_size: 0,
             render_distance: 16,
+            render_empty_chunks: true,
         }
     }
 
@@ -62,7 +65,7 @@ impl ChunkManager {
     }
 
     pub fn generate_chunks(&mut self) {
-        let load_distance = self.render_distance - 1;
+        let load_distance = self.render_distance + 1;
         let last_player_position = self.last_player_position;
 
         if self.chunk_generate_queue.is_empty() {
@@ -99,7 +102,7 @@ impl ChunkManager {
         let mesh_distance = self.render_distance;
 
         if self.chunk_mesh_queue.is_empty() {
-            if self.current_chunk_mesh_radius < mesh_distance && self.current_chunk_mesh_radius + 1 < self.current_chunk_generate_radius {
+            if self.current_chunk_mesh_radius < mesh_distance && self.current_chunk_mesh_radius + 2 < self.current_chunk_generate_radius {
                 self.current_chunk_mesh_radius += 1;
 
                 let radius = self.current_chunk_mesh_radius;
@@ -151,6 +154,8 @@ impl ChunkManager {
                 && (-unload_distance..=unload_distance).contains(&location_relative_to_player.z))
             {
                 let chunk = self.chunks.remove(&loc).expect("wtf");
+                self.chunk_mesh_queue.retain(|l| l != &loc);
+                self.chunk_generate_queue.retain(|l| l != &loc);
 
                 if let Some(mesh) = chunk.mesh {
                     self.total_vertices -= mesh.vertices.len();
@@ -174,7 +179,7 @@ impl ChunkManager {
 impl Renderer for ChunkManager {
     fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, camera_bind_group: &'a BindGroup) {
         self.chunks.iter().for_each(|(_, chunk)| {
-            if let Some(renderer) = chunk.get_renderer() {
+            if let Some(renderer) = chunk.get_renderer(self.render_empty_chunks) {
                 renderer.render(render_pass, camera_bind_group);
             }
         })

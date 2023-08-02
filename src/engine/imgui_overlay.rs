@@ -22,6 +22,7 @@ pub struct ImguiOverlay {
     last_fps_counts: VecDeque<f32>,
 
     pub render_distance: i32,
+    pub render_empty_chunks: bool,
 }
 
 impl ImguiOverlay {
@@ -63,6 +64,7 @@ impl ImguiOverlay {
             render_ctx,
             last_fps_counts: VecDeque::with_capacity(60),
             render_distance: 16,
+            render_empty_chunks: true,
         }
     }
 
@@ -121,6 +123,7 @@ impl ImguiOverlay {
                             ));
                             ui.text(format!("V: {}  T: {}", stats.num_vertices, stats.num_triangles));
                             ui.text(format!("Chunks: {}", stats.num_chunks));
+                            ui.checkbox("render empty chunks", &mut self.render_empty_chunks);
                         });
 
                     ui.tree_node_config("Timing")

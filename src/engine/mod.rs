@@ -13,7 +13,7 @@ pub use starter::start;
 use crate::engine::frame_timer::FrameTimer;
 use crate::engine::imgui_overlay::{ImguiOverlay, PerFrameStats};
 use crate::engine::rendering::camera::{Camera, CameraController};
-use crate::engine::rendering::RenderCtx;
+use crate::engine::rendering::{RenderCtx, Renderer, Renderer2D};
 use crate::engine::timing::TimerManager;
 use crate::engine::world::chunk_manager::ChunkManager;
 
@@ -90,6 +90,7 @@ impl Engine {
         let dt_n = self.timer.end_restart("frame");
 
         self.chunk_manager.render_distance = self.imgui_overlay.render_distance;
+        self.chunk_manager.render_empty_chunks = self.imgui_overlay.render_empty_chunks;
 
         self.timer.start("update_camera");
         self.camera_controller
