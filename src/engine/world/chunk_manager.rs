@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use cgmath::Vector3;
 use itertools::{iproduct, Itertools};
+use rayon::prelude::*;
 use wgpu::{BindGroup, RenderPass};
 
 use crate::engine::rendering::{RenderCtx, Renderer};
@@ -87,15 +88,20 @@ impl ChunkManager {
             }
         }
 
-        let mut count = 0;
-        while let Some(location) = self.chunk_generate_queue.pop_back() {
-            self.generate_new(location);
+        let generated_chunks = self
+            .chunk_generate_queue
+            .drain(0..(8.min(self.chunk_generate_queue.len())))
+            .par_bridge()
+            .map(|location| (location, self.chunk_generator.get_chunk_data_at(location)))
+            .collect::<Vec<_>>();
 
-            count += 1;
-            if count >= 3 {
-                break;
-            }
-        }
+        generated_chunks
+            .into_iter()
+            .for_each(|(location, data)| {
+                let chunk = Chunk::new(location, data);
+                self.chunks.insert(location, chunk);
+                self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
+            });
     }
 
     pub fn generate_chunk_meshes(&mut self, render_ctx: &Rc<RefCell<RenderCtx>>, camera_bind_group_layout: &wgpu::BindGroupLayout) {
@@ -122,24 +128,37 @@ impl ChunkManager {
             }
         }
 
-        let mut count = 0;
-        while let Some(loc) = self.chunk_mesh_queue.pop_back() {
-            let mesh = ChunkMeshGenerator::generate_mesh(render_ctx.clone(), camera_bind_group_layout, loc, &self.chunks);
+        let generated_meshes = self
+            .chunk_mesh_queue
+            .drain(0..(4.min(self.chunk_mesh_queue.len())))
+            .map(|location| {
+                let data = &self
+                    .chunks
+                    .get(&location)
+                    .expect("Tried to generate mesh for chunk without data")
+                    .data;
+                (location, data)
+            })
+            .map(|(location, data)| {
+                let quads = ChunkMeshGenerator::generate_culled_mesh(location, data, &self.chunks); // TODO separate chunk data and chunk meshes so only the data (which is Send+Sync) can be passed here
 
-            self.total_vertices += mesh.vertices.len();
-            self.total_triangles += mesh.indices.len() / 3;
-            self.total_mesh_data_size += mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(&mesh.vertices.as_slice());
+                (location, quads)
+            })
+            .collect::<Vec<_>>();
 
-            self.chunks
-                .get_mut(&loc)
-                .expect("Can not insert mesh into a non-existing chunk")
-                .mesh = Some(mesh);
+        generated_meshes
+            .into_iter()
+            .for_each(|(location, quads)| {
+                let mesh = ChunkMeshGenerator::generate_mesh_from_quads(location, quads, render_ctx.clone(), camera_bind_group_layout);
+                self.total_vertices += mesh.vertices.len();
+                self.total_triangles += mesh.indices.len() / 3;
+                self.total_mesh_data_size += mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(mesh.vertices.as_slice());
 
-            count += 1;
-            if count >= 3 {
-                break;
-            }
-        }
+                self.chunks
+                    .get_mut(&location)
+                    .expect("Can not insert mesh into a non-existing chunk")
+                    .mesh = Some(mesh);
+            });
     }
 
     pub fn unload_chunks(&mut self) {

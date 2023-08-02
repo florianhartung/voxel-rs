@@ -24,28 +24,19 @@ pub struct ChunkMeshGenerator {
 }
 
 impl ChunkMeshGenerator {
-    pub fn generate_mesh(
+    pub fn generate_mesh_from_quads(
+        chunk_location: ChunkLocation,
+        quads: Vec<Quad>,
         render_ctx: Rc<RefCell<RenderCtx>>,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
-        location: ChunkLocation,
-        chunks: &HashMap<ChunkLocation, Chunk>,
     ) -> Mesh {
-        let quads = Self::generate_culled_mesh(
-            location,
-            &chunks
-                .get(&location)
-                .expect("Can't generate a mesh for a chunk that does not exist")
-                .data,
-            chunks,
-        );
-
         let mut vertices: Vec<Vertex> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
 
         quads.iter().for_each(|quad| {
             let base_index = vertices.len() as u32;
 
-            let mut pos = quad.position.to_f32() + location.to_world_location_f32();
+            let mut pos = quad.position.to_f32() + chunk_location.to_world_location_f32();
             let direction = quad
                 .direction
                 .to_vec()
@@ -82,6 +73,23 @@ impl ChunkMeshGenerator {
         });
 
         Mesh::new(render_ctx, camera_bind_group_layout, vertices, indices)
+    }
+    pub fn generate_mesh(
+        render_ctx: Rc<RefCell<RenderCtx>>,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
+        location: ChunkLocation,
+        chunks: &HashMap<ChunkLocation, Chunk>,
+    ) -> Mesh {
+        let quads = Self::generate_culled_mesh(
+            location,
+            &chunks
+                .get(&location)
+                .expect("Can't generate a mesh for a chunk that does not exist")
+                .data,
+            chunks,
+        );
+
+        Self::generate_mesh_from_quads(location, quads, render_ctx, camera_bind_group_layout)
     }
 
     pub fn generate_culled_mesh(
