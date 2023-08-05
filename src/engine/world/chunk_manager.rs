@@ -1,6 +1,6 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::collections::vec_deque::VecDeque;
+use std::collections::HashMap;
 use std::mem;
 use std::rc::Rc;
 
@@ -10,12 +10,12 @@ use rayon::prelude::*;
 use wgpu::{BindGroup, RenderPass};
 
 use crate::engine::rendering::{RenderCtx, Renderer};
-use crate::engine::world::chunk::Chunk;
-use crate::engine::world::CHUNK_SIZE;
+use crate::engine::world::chunk::{Chunk, ChunkMesh};
 use crate::engine::world::location::ChunkLocation;
 use crate::engine::world::meshing::ChunkMeshGenerator;
 use crate::engine::world::voxel_data::VoxelData;
 use crate::engine::world::worldgen::WorldGenerator;
+use crate::engine::world::CHUNK_SIZE;
 
 pub struct ChunkManager {
     pub chunks: HashMap<ChunkLocation, Chunk>,
@@ -114,7 +114,7 @@ impl ChunkManager {
                 .map(|(x, y, z)| self.last_player_position + ChunkLocation::new(Vector3::new(x, y, z)))
                 .for_each(|location| {
                     if let Some(chunk) = self.chunks.get_mut(&location) {
-                        if chunk.mesh.is_none() && !self.chunk_mesh_queue.contains(&chunk.location) {
+                        if matches!(chunk.mesh, ChunkMesh::None) && !self.chunk_mesh_queue.contains(&chunk.location) {
                             self.chunk_mesh_queue.push_back(chunk.location);
                         }
                     }
@@ -150,7 +150,7 @@ impl ChunkManager {
                 self.chunks
                     .get_mut(&location)
                     .expect("Can not insert mesh into a non-existing chunk")
-                    .mesh = Some(mesh);
+                    .mesh = ChunkMesh::new(mesh);
             });
     }
 
@@ -169,7 +169,7 @@ impl ChunkManager {
                 self.chunk_mesh_queue.retain(|l| l != &loc);
                 self.chunk_generate_queue.retain(|l| l != &loc);
 
-                if let Some(mesh) = chunk.mesh {
+                if let ChunkMesh::Generated(mesh) = chunk.mesh {
                     self.total_vertices -= mesh.vertices.len();
                     self.total_triangles -= mesh.indices.len() / 3;
                     self.total_mesh_data_size -= mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(mesh.vertices.as_slice());

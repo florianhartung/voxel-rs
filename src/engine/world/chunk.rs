@@ -7,8 +7,25 @@ use crate::engine::world::voxel_data::VoxelType;
 pub struct Chunk {
     pub location: ChunkLocation,
     pub data: ChunkData,
-    pub mesh: Option<Mesh>,
+    pub mesh: ChunkMesh,
     pub is_empty: bool,
+}
+
+#[derive(Debug)]
+pub enum ChunkMesh {
+    None,
+    Generated(Mesh),
+    Empty(Mesh),
+}
+
+impl ChunkMesh {
+    pub fn new(mesh: Mesh) -> Self {
+        if !mesh.indices.is_empty() {
+            Self::Generated(mesh)
+        } else {
+            Self::Empty(mesh)
+        }
+    }
 }
 
 impl Chunk {
@@ -18,14 +35,20 @@ impl Chunk {
         Self {
             location,
             data,
-            mesh: None,
+            mesh: ChunkMesh::None,
             is_empty: !contains_non_air_voxels,
         }
     }
 
-    pub fn get_renderer(&self, render_empty_chunks: bool) -> Option<&MeshRenderer> {
-        if render_empty_chunks || !self.is_empty {
-            self.mesh.as_ref().map(|mesh| mesh.get_renderer())
+    pub fn get_renderer(&self, render_empty: bool) -> Option<&MeshRenderer> {
+        if let ChunkMesh::Generated(mesh) = &self.mesh {
+            Some(mesh.get_renderer())
+        } else if let ChunkMesh::Empty(mesh) = &self.mesh {
+            if render_empty {
+                Some(mesh.get_renderer())
+            } else {
+                None
+            }
         } else {
             None
         }
