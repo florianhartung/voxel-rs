@@ -1,7 +1,6 @@
-mod engine;
-
 use log::LevelFilter;
 
+mod engine;
 
 fn main() {
     env_logger::Builder::new()

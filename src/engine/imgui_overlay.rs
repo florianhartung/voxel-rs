@@ -29,7 +29,7 @@ impl ImguiOverlay {
     pub fn new(render_ctx: Rc<RefCell<RenderCtx>>, window: &winit::window::Window) -> Self {
         let mut imgui = imgui::Context::create();
         let mut platform = WinitPlatform::init(&mut imgui);
-        platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Default);
+        platform.attach_window(imgui.io_mut(), window, HiDpiMode::Default);
         imgui.set_ini_filename(None);
         let hidpi_factor = window.scale_factor();
         let font_size = (20.0 * hidpi_factor) as f32;

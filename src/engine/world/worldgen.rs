@@ -6,12 +6,12 @@ use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
 use crate::engine::world::voxel_data::{VoxelData, VoxelType};
 
 pub struct WorldGenerator {
-    world_seed: u32,
+    _world_seed: u32,
 }
 
 impl WorldGenerator {
     pub fn new(world_seed: u32) -> Self {
-        Self { world_seed }
+        Self { _world_seed: world_seed }
     }
 
     pub fn get_chunk_data_at(&self, chunk_location: ChunkLocation) -> ChunkData {
@@ -23,8 +23,8 @@ impl WorldGenerator {
 
 pub fn perlin_3d(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {
     let mut chunk_voxel_data = ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Air));
-    let mut perlin = Perlin::new(world_seed);
-    let mut perlin2 = Perlin::new(world_seed + 1);
+    let perlin = Perlin::new(world_seed);
+    let perlin2 = Perlin::new(world_seed + 1);
 
     LocalChunkLocation::iter().for_each(|pos| {
         let coords = pos.to_f64() + chunk_location.to_world_location_f64();
@@ -97,11 +97,11 @@ struct NoiseLayer {
 }
 
 trait LayeredNoiseGenerator {
-    fn get_layered(&mut self, octaves: &Vec<NoiseLayer>, point: [f64; 2]) -> f64;
+    fn get_layered(&mut self, octaves: &[NoiseLayer], point: [f64; 2]) -> f64;
 }
 
 impl LayeredNoiseGenerator for Perlin {
-    fn get_layered(&mut self, octaves: &Vec<NoiseLayer>, point: [f64; 2]) -> f64 {
+    fn get_layered(&mut self, octaves: &[NoiseLayer], point: [f64; 2]) -> f64 {
         octaves
             .iter()
             .map(|layer| layer.weight * self.get([point[0] * layer.scale, point[1] * layer.scale]))

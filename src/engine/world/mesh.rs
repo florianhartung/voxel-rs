@@ -179,7 +179,7 @@ impl MeshRenderer {
         }
     }
 
-    pub fn update(&mut self, _new_vertices: &Vec<Vertex>, _new_indices: &Vec<u32>) {
+    pub fn update(&mut self, _new_vertices: &[Vertex], _new_indices: &[u32]) {
         todo!("Update buffers")
     }
 }
@@ -196,6 +196,3 @@ impl Renderer for MeshRenderer {
         render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
 }
-
-// TODO
-struct MeshBuilder {}

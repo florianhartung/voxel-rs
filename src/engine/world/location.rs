@@ -57,12 +57,12 @@ impl ChunkLocation {
         ))
     }
 
-    pub fn to_world_location_f32(&self) -> Vector3<f32> {
+    pub fn to_world_location_f32(self) -> Vector3<f32> {
         let scaled = self.0 * (CHUNK_SIZE as i32);
         Vector3::new(scaled.x as f32, scaled.y as f32, scaled.z as f32)
     }
 
-    pub fn to_world_location_f64(&self) -> Vector3<f64> {
+    pub fn to_world_location_f64(self) -> Vector3<f64> {
         let scaled = self.0 * (CHUNK_SIZE as i32);
         Vector3::new(scaled.x as f64, scaled.y as f64, scaled.z as f64)
     }
@@ -93,7 +93,7 @@ impl Deref for ChunkLocation {
 }
 
 /// A local location inside of a specific chunk.
-/// The generic type `State` signals whether it is confirmed that the location is within the chunk boundaries defined by [super::CHUNK_SIZE].
+/// The generic type `State` signals whether it is confirmed that the location is within the chunk boundaries defined by [CHUNK_SIZE].
 /// It can be either one of [WithinBounds] or [OutsideBounds].
 /// When creating a world object, the State=OutsideBounds is assumed. To get a State=WithinBounds the method [LocalChunkLocation::try_into_checked] can be called.
 #[derive(Copy, Clone, Debug)]

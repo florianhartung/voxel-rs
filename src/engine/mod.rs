@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::ops::Sub;
 use std::rc::Rc;
 
 use cgmath::{Deg, EuclideanSpace};
@@ -13,7 +12,7 @@ pub use starter::start;
 use crate::engine::frame_timer::FrameTimer;
 use crate::engine::imgui_overlay::{ImguiOverlay, PerFrameStats};
 use crate::engine::rendering::camera::{Camera, CameraController};
-use crate::engine::rendering::{RenderCtx, Renderer, Renderer2D};
+use crate::engine::rendering::RenderCtx;
 use crate::engine::timing::TimerManager;
 use crate::engine::world::chunk_manager::ChunkManager;
 
@@ -59,7 +58,6 @@ impl Engine {
             0.1,
             1000.0,
         );
-        const WORLD_SEED: u32 = 2;
 
         let mut chunk_manager = ChunkManager::new(camera.position.to_vec());
         chunk_manager.generate_chunks();
@@ -87,7 +85,6 @@ impl Engine {
         let render_ctx = self.render_ctx.borrow();
 
         let dt = self.frame_timer.get_dt();
-        let dt_n = self.timer.end_restart("frame");
 
         self.chunk_manager.render_distance = self.imgui_overlay.render_distance;
         self.chunk_manager.render_empty_chunks = self.imgui_overlay.render_empty_chunks;
@@ -207,7 +204,7 @@ impl Engine {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(new_size) => {
-                    self.render_ctx.borrow_mut().resize(&new_size);
+                    self.render_ctx.borrow_mut().resize(new_size);
                     self.camera
                         .resize(new_size.width, new_size.height);
                     true
@@ -228,10 +225,8 @@ impl Engine {
 }
 
 fn create_basic_window(event_loop: &EventLoop<()>) -> Window {
-    let window = WindowBuilder::new()
+    WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(800, 600))
-        .build(&event_loop)
-        .unwrap();
-
-    window
+        .build(event_loop)
+        .unwrap()
 }

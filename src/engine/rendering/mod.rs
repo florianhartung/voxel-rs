@@ -71,8 +71,7 @@ impl RenderCtx {
             .formats
             .iter()
             .copied()
-            .filter(TextureFormat::is_srgb)
-            .next()
+            .find(TextureFormat::is_srgb)
             .expect("Could not find a surface capability that supports sRGB");
 
         let surface_config = wgpu::SurfaceConfiguration {
@@ -122,7 +121,7 @@ impl RenderCtx {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
         RenderHandle {
-            render_ctx: &self,
+            render_ctx: self,
             encoder: ManuallyDrop::new(encoder),
             target_texture: ManuallyDrop::new(target_texture),
             target_texture_view,

@@ -12,7 +12,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub fn to_vec(&self) -> Vector3<i32> {
+    pub fn to_vec(self) -> Vector3<i32> {
         match self {
             Direction::XPos => Vector3::unit_x(),
             Direction::XNeg => -Vector3::unit_x(),

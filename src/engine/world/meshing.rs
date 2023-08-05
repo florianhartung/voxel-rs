@@ -9,12 +9,12 @@ use crate::engine::rendering::RenderCtx;
 use crate::engine::vector_utils::{AbsValue, RemEuclid};
 use crate::engine::world::chunk::Chunk;
 use crate::engine::world::chunk_data::ChunkData;
+use crate::engine::world::CHUNK_SIZE;
 use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
 use crate::engine::world::mesh::{Mesh, Vertex};
 use crate::engine::world::meshing::direction::Direction;
 use crate::engine::world::meshing::quad::{FaceData, Quad};
 use crate::engine::world::voxel_data::VoxelType;
-use crate::engine::world::CHUNK_SIZE;
 
 pub mod direction;
 pub mod quad;
@@ -109,18 +109,16 @@ impl ChunkMeshGenerator {
                         if data.get_voxel(same_chunk_neighbor).ty == VoxelType::Air {
                             quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
                         }
-                    } else {
-                        if let Some(chunk) = all_chunks.get(&ChunkLocation::new(*current_location + dir.to_vec())) {
-                            let neighbor_local = LocalChunkLocation::new(neighbor_voxel_location.rem_euclid(CHUNK_SIZE as i32))
-                                .try_into_checked()
-                                .expect("aa");
+                    } else if let Some(chunk) = all_chunks.get(&ChunkLocation::new(*current_location + dir.to_vec())) {
+                        let neighbor_local = LocalChunkLocation::new(neighbor_voxel_location.rem_euclid(CHUNK_SIZE as i32))
+                            .try_into_checked()
+                            .expect("aa");
 
-                            if chunk.data.get_voxel(neighbor_local).ty == VoxelType::Air {
-                                quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
-                            }
-                        } else {
-                            eprintln!("Neighbor chunk's data is not generated yet.")
+                        if chunk.data.get_voxel(neighbor_local).ty == VoxelType::Air {
+                            quads.push(Quad::new(pos, dir, FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty))));
                         }
+                    } else {
+                        eprintln!("Neighbor chunk's data is not generated yet.")
                     }
                 }
             });
