@@ -22,6 +22,12 @@ impl Direction {
             Direction::ZNeg => -Vector3::unit_z(),
         }
     }
+
+    pub fn get_normal_axes(self) -> (Vector3<i32>, Vector3<i32>) {
+        let v = self.to_vec();
+
+        (Vector3::new(v.y, v.z, v.x), Vector3::new(v.z, v.x, v.y))
+    }
 }
 
 impl From<Direction> for Vector3<i32> {

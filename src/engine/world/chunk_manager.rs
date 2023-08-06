@@ -123,7 +123,7 @@ impl ChunkManager {
 
         let generated_meshes = self
             .chunk_mesh_queue
-            .drain(0..(4.min(self.chunk_mesh_queue.len())))
+            .drain(0..(1.min(self.chunk_mesh_queue.len())))
             .map(|location| {
                 let data = &self
                     .chunks
@@ -166,7 +166,7 @@ impl ChunkManager {
                 && (-unload_distance..=unload_distance).contains(&location_relative_to_player.z))
             {
                 let chunk = self.chunks.remove(&loc).expect("wtf");
-                self.chunk_mesh_queue.retain(|l| l != &loc);
+                self.chunk_mesh_queue.clear();
                 self.chunk_generate_queue.retain(|l| l != &loc);
 
                 if let ChunkMesh::Generated(mesh) = chunk.mesh {

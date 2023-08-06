@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::ops::{Add, Deref, Sub};
+use std::ops::{Add, Deref, DerefMut, Sub};
 
 use cgmath::Vector3;
 use itertools::iproduct;
@@ -18,7 +18,16 @@ impl WorldLocation {
     }
 
     pub fn separate(self) -> (ChunkLocation, LocalChunkLocation<WithinBounds>) {
-        let chunk_location = ChunkLocation::new(self.0 / CHUNK_SIZE as i32);
+        let mut chunk_location = ChunkLocation::new(self.0 / CHUNK_SIZE as i32);
+        if self.0.x < 0 {
+            chunk_location.0.x -= 1;
+        }
+        if self.0.y < 0 {
+            chunk_location.0.y -= 1;
+        }
+        if self.0.z < 0 {
+            chunk_location.0.z -= 1;
+        }
         let local_chunk_location = LocalChunkLocation::new_unchecked(self.0.rem_euclid(CHUNK_SIZE as i32));
 
         (chunk_location, local_chunk_location)
@@ -89,6 +98,12 @@ impl Deref for ChunkLocation {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for ChunkLocation {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -180,5 +195,54 @@ impl<T> Deref for LocalChunkLocation<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.location
+    }
+}
+
+impl<T> DerefMut for LocalChunkLocation<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.location
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cgmath::Vector3;
+
+    use crate::engine::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
+    use crate::engine::world::CHUNK_SIZE;
+
+    #[test]
+    fn test_world_location() {
+        assert!(CHUNK_SIZE == 32, "test only works for chunksize=32");
+
+        let local = LocalChunkLocation::new(Vector3::new(5, 6, 7));
+        let chunk = ChunkLocation::new(Vector3::new(1, 2, 3));
+
+        assert_eq!(
+            WorldLocation::new(chunk, local).0,
+            Vector3::new(1 * CHUNK_SIZE as i32 + 5, 2 * CHUNK_SIZE as i32 + 6, 3 * CHUNK_SIZE as i32 + 7)
+        );
+        assert_eq!(WorldLocation::new(chunk, local).separate().0 .0, chunk.0);
+        assert_eq!(
+            WorldLocation::new(chunk, local)
+                .separate()
+                .1
+                .location,
+            local.location
+        );
+
+        let local_outside = LocalChunkLocation::new(Vector3::new(-1, 0, 0));
+
+        assert_eq!(
+            WorldLocation::new(chunk, local_outside).0,
+            Vector3::new(CHUNK_SIZE as i32 - 1, 2 * CHUNK_SIZE as i32, 3 * CHUNK_SIZE as i32)
+        );
+
+        let negative_world_location = WorldLocation(Vector3::new(-1, -65, 1));
+        assert_eq!(negative_world_location.separate().0 .0, Vector3::new(-1, -3, 0));
+        assert_eq!(
+            negative_world_location.separate().1.location,
+            Vector3::new(CHUNK_SIZE as i32 - 1, CHUNK_SIZE as i32 - 1, 1)
+        );
     }
 }

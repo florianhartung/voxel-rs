@@ -49,8 +49,8 @@ impl Engine {
 
         let camera = Camera::new(
             &render_ctx.borrow(),
-            (0.0, 0.0, 0.0),
-            Deg(-90.0),
+            (-79.21167, 5.4288225, -39.484493),
+            Deg(-42.0),
             Deg(-20.0),
             render_ctx.borrow().surface_config.width,
             render_ctx.borrow().surface_config.height,
@@ -73,7 +73,7 @@ impl Engine {
             frame_timer: FrameTimer::new(),
             render_ctx,
             camera,
-            camera_controller: CameraController::new(200.0, 0.5),
+            camera_controller: CameraController::new(20.0, 0.5),
             mouse_pressed: false,
             chunk_manager,
             imgui_overlay,

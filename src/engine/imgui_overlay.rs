@@ -63,8 +63,8 @@ impl ImguiOverlay {
             renderer,
             render_ctx,
             last_fps_counts: VecDeque::with_capacity(60),
-            render_distance: 16,
-            render_empty_chunks: true,
+            render_distance: 8,
+            render_empty_chunks: false,
         }
     }
 
