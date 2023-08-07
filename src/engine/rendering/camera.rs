@@ -1,15 +1,21 @@
 use std::time::Duration;
 
+use bytemuck::Zeroable;
 use cgmath::num_traits::FloatConst;
-use cgmath::{InnerSpace, Matrix4, Point3, Rad, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Rad, Vector3};
 use wgpu::util::DeviceExt;
 use wgpu::BindingType;
 use winit::event::{ElementState, VirtualKeyCode};
 
 use crate::engine::rendering::RenderCtx;
+use crate::engine::world::chunk_manager::ChunkManager;
+use crate::engine::world::location::WorldLocation;
+use crate::engine::world::voxel_data::VoxelType;
 
 pub struct Camera {
     pub position: Point3<f32>,
+    pub velocity: Vector3<f32>,
+
     yaw: Rad<f64>,
     pitch: Rad<f64>,
     projection: Projection,
@@ -82,6 +88,7 @@ impl Camera {
 
         Camera {
             position,
+            velocity: Vector3::zeroed(),
             yaw: yaw.into(),
             pitch: pitch.into(),
             projection: Projection::new(width, height, fov_y, z_near, z_far),
@@ -155,6 +162,8 @@ pub struct CameraController {
     rotate_vertical: f64,
     speed: f32,
     sensitivity: f32,
+    jumping: bool,
+    pub no_clip: bool,
 }
 
 impl CameraController {
@@ -172,6 +181,8 @@ impl CameraController {
             rotate_vertical: 0.0,
             last_rotate_horizontal: 0.0,
             last_rotate_vertical: 0.0,
+            jumping: false,
+            no_clip: true,
         }
     }
 
@@ -198,6 +209,7 @@ impl CameraController {
             }
             Space => {
                 self.up = is_pressed;
+                self.jumping = is_pressed;
                 true
             }
             LShift => {
@@ -213,6 +225,34 @@ impl CameraController {
         self.rotate_vertical = mouse_dy;
     }
 
+    pub fn update_physics(&mut self, camera: &mut Camera, chunk_manager: &ChunkManager, dt: Duration) {
+        const GRAVITY: Vector3<f32> = Vector3::new(0.0, -20.0, 0.0);
+
+        let (chunk_location, local_chunk_location) =
+            WorldLocation(camera.position.to_vec().cast::<i32>().unwrap() + Vector3::new(0, -2, 0)).separate();
+
+        let is_grounded = chunk_manager
+            .chunks
+            .get(&chunk_location)
+            .map(|chunk| chunk.data.get_voxel(local_chunk_location).ty != VoxelType::Air)
+            .unwrap_or(false);
+
+        if !self.no_clip {
+            if !is_grounded {
+                camera.velocity += dt.as_secs_f32() * GRAVITY;
+            }
+            if is_grounded {
+                camera.velocity = Vector3::zeroed();
+                camera.position.y = camera.position.y.ceil();
+            }
+            if is_grounded && self.jumping {
+                camera.velocity += Vector3::new(0.0, 10.0, 0.0);
+                self.jumping = false;
+            }
+            camera.position += dt.as_secs_f32() * camera.velocity;
+        }
+    }
+
     pub fn update_camera(&mut self, camera: &mut Camera, dt: Duration) {
         let dt = dt.as_secs_f32();
 
@@ -226,7 +266,9 @@ impl CameraController {
         camera.position += forward * forward_speed * dt;
         camera.position += right * right_speed * dt;
 
-        camera.position.y += if self.up { self.speed * dt } else { 0.0 } + if self.down { -self.speed * dt } else { 0.0 };
+        if self.no_clip {
+            camera.position.y += if self.up { self.speed * dt } else { 0.0 } + if self.down { -self.speed * dt } else { 0.0 };
+        }
 
         const FACTOR: f64 = 0.5;
 

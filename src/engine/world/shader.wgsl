@@ -37,9 +37,9 @@ fn vs_main(
 	fog_dist = distance(camera.position.xyz, model.position);
 	var fog: f32 = 1.0 - max(0.0, min(1.0, pow(fog_dist / (24.0*32.0), 2.0)));
 
-	var ambient_occlusion = model.ambient_occlusion / 3.0;
+	var ambient_occlusion = model.ambient_occlusion / 3.0; // shadow 0.0 <-> 1.0 light
 
-	var color = (0.7*brightness + 0.3*ambient_occlusion) * model.color;
+	var color = (brightness - 0.2 * (1.0 - ambient_occlusion)) * model.color;
 
     out.color = mix(vec3(0.4941, 0.6627, 1.0), color, fog);
     return out;

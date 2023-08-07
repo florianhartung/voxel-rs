@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use cgmath::{Deg, EuclideanSpace};
-use winit::dpi::PhysicalSize;
-use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::event::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -36,7 +36,7 @@ pub struct Engine {
 
     camera: Camera,
     camera_controller: CameraController,
-    mouse_pressed: bool,
+    mouse_locked: bool,
 
     imgui_overlay: ImguiOverlay,
     timer: TimerManager,
@@ -74,7 +74,7 @@ impl Engine {
             render_ctx,
             camera,
             camera_controller: CameraController::new(20.0, 0.5),
-            mouse_pressed: false,
+            mouse_locked: false,
             chunk_manager,
             imgui_overlay,
             timer,
@@ -88,8 +88,11 @@ impl Engine {
 
         self.chunk_manager.render_distance = self.imgui_overlay.render_distance;
         self.chunk_manager.render_empty_chunks = self.imgui_overlay.render_empty_chunks;
+        self.camera_controller.no_clip = self.imgui_overlay.no_clip;
 
         self.timer.start("update_camera");
+        self.camera_controller
+            .update_physics(&mut self.camera, &self.chunk_manager, dt);
         self.camera_controller
             .update_camera(&mut self.camera, dt);
         self.camera.update_buffer(&render_ctx);
@@ -153,6 +156,10 @@ impl Engine {
 
         match event {
             key_press!(VirtualKeyCode::Escape) | close_requested!() => *control_flow = ControlFlow::ExitWithCode(0),
+            key_press!(VirtualKeyCode::LAlt) => {
+                self.mouse_locked = !self.mouse_locked;
+                self.window.set_cursor_visible(!self.mouse_locked);
+            }
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
@@ -169,28 +176,16 @@ impl Engine {
                 self.camera_controller
                     .process_keyboard(&virtual_keycode, &state);
             }
-
-            Event::WindowEvent {
-                event:
-                    WindowEvent::MouseInput {
-                        button: MouseButton::Left,
-                        state,
-                        ..
-                    },
-                ..
-            } => {
-                // self.chunk.randomize_data();
-                // self.chunk
-                //     .update_renderer(&mut self.chunk_renderer, &self.render_ctx);
-                self.mouse_pressed = matches!(state, ElementState::Pressed);
-            }
             Event::DeviceEvent {
                 event: DeviceEvent::MouseMotion { delta },
                 ..
             } => {
-                if self.mouse_pressed {
+                if self.mouse_locked {
                     self.camera_controller
                         .process_mouse(delta.0, delta.1);
+                    self.window
+                        .set_cursor_position(get_window_center_position(&self.window))
+                        .expect("Could not center mouse");
                 }
             }
             _ => {}
@@ -224,9 +219,16 @@ impl Engine {
     }
 }
 
+fn get_window_center_position(window: &Window) -> PhysicalPosition<u32> {
+    let inner_size = window.inner_size();
+    PhysicalPosition::new(inner_size.width / 2, inner_size.height / 2)
+}
+
 fn create_basic_window(event_loop: &EventLoop<()>) -> Window {
-    WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(800, 600))
         .build(event_loop)
-        .unwrap()
+        .unwrap();
+
+    window
 }

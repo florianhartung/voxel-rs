@@ -23,6 +23,7 @@ pub struct ImguiOverlay {
 
     pub render_distance: i32,
     pub render_empty_chunks: bool,
+    pub no_clip: bool,
 }
 
 impl ImguiOverlay {
@@ -65,6 +66,7 @@ impl ImguiOverlay {
             last_fps_counts: VecDeque::with_capacity(60),
             render_distance: 8,
             render_empty_chunks: false,
+            no_clip: true,
         }
     }
 
@@ -101,6 +103,7 @@ impl ImguiOverlay {
                         .build(|| {
                             ui.text(format!("FPS: {:.1} ({:.2}ms)", average_fps, 1000.0 / average_fps));
                             ui.text(format!("Location: {:?}", stats.position));
+                            ui.checkbox("noclip", &mut self.no_clip);
                         });
 
                     ui.tree_node_config("Memory")

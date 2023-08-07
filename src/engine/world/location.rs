@@ -10,7 +10,7 @@ use crate::engine::world::CHUNK_SIZE;
 
 /// An absolute location in the world. It contains a chunk location and a local chunk location encoded into a single Vector3.
 #[derive(Copy, Clone, Debug)]
-pub struct WorldLocation(Vector3<i32>);
+pub struct WorldLocation(pub Vector3<i32>);
 
 impl WorldLocation {
     pub fn new(chunk_location: ChunkLocation, local_location: LocalChunkLocation) -> Self {
