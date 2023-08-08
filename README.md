@@ -23,6 +23,12 @@ Some possibilities for what this voxel engine could turn into include:
 
 ## Milestone showcases
 
+### Large amount of concurrent loaded chunks
+
+![screenshot](images/large_render_distance.png)
+*A huge amount of chunks can be loaded at once. This is because one chunk only stores data for every contained voxel, if
+the voxels are of different types.*
+
 ### Ambient Occlusion
 
 ![screenshot](images/ambient_occlusion.png)
