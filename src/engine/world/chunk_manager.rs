@@ -110,12 +110,7 @@ impl ChunkManager {
     }
 
     pub fn generate_chunk_meshes(&mut self, render_ctx: &Rc<RefCell<RenderCtx>>, camera_bind_group_layout: &wgpu::BindGroupLayout) {
-        let mesh_distance = self.render_distance;
-
-        if self.chunk_mesh_queue.is_empty()
-            && self.current_chunk_mesh_radius < mesh_distance
-            && self.current_chunk_mesh_radius + 2 < self.current_chunk_generate_radius
-        {
+        if self.chunk_mesh_queue.is_empty() && self.current_chunk_mesh_radius + 3 < self.current_chunk_generate_radius {
             self.current_chunk_mesh_radius += 1;
 
             let radius = self.current_chunk_mesh_radius;
