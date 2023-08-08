@@ -54,7 +54,7 @@ impl Engine {
             Deg(-20.0),
             render_ctx.borrow().surface_config.width,
             render_ctx.borrow().surface_config.height,
-            Deg(45.0),
+            Deg(80.0),
             0.1,
             1000.0,
         );

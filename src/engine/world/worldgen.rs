@@ -42,7 +42,7 @@ pub fn perlin_3d(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {
                 VoxelType::Grass
             };
 
-            chunk_voxel_data.get_voxel_mut(pos).ty = ty;
+            chunk_voxel_data.set_voxel_data(pos, VoxelData::new(ty));
         }
     });
 
@@ -71,7 +71,7 @@ pub fn flat_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> Ch
         let normalized_height = (layered_perlin + 1.0) / 2.0;
         let height = 16.0 * normalized_height + 1.0;
 
-        chunk_voxel_data.get_voxel_mut(pos).ty = if coords.y < height {
+        let voxel_type = if coords.y < height {
             {
                 if coords.y + 1.0 < height {
                     if coords.y + 6.0 < height {
@@ -86,7 +86,10 @@ pub fn flat_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> Ch
         } else {
             VoxelType::Air
         };
+        chunk_voxel_data.set_voxel_data(pos, VoxelData::new(voxel_type));
     });
+
+    chunk_voxel_data.try_convert_into_uniform();
 
     chunk_voxel_data
 }

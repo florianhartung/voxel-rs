@@ -11,6 +11,7 @@ use wgpu::{BindGroup, RenderPass};
 
 use crate::engine::rendering::{RenderCtx, Renderer};
 use crate::engine::world::chunk::{Chunk, ChunkMesh};
+use crate::engine::world::chunk_data::ChunkData;
 use crate::engine::world::location::ChunkLocation;
 use crate::engine::world::meshing::ChunkMeshGenerator;
 use crate::engine::world::voxel_data::VoxelData;
@@ -94,8 +95,17 @@ impl ChunkManager {
             .into_iter()
             .for_each(|(location, data)| {
                 let chunk = Chunk::new(location, data);
+
+                match &chunk.data {
+                    ChunkData::Voxels(_) => {
+                        self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
+                    }
+                    ChunkData::UniformType(_) => {
+                        self.total_voxel_data_size += mem::size_of::<VoxelData>();
+                    }
+                }
+
                 self.chunks.insert(location, chunk);
-                self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
             });
     }
 
@@ -175,7 +185,14 @@ impl ChunkManager {
                     self.total_mesh_data_size -= mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(mesh.vertices.as_slice());
                 }
 
-                self.total_voxel_data_size -= CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
+                match &chunk.data {
+                    ChunkData::Voxels(_) => {
+                        self.total_voxel_data_size -= CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
+                    }
+                    ChunkData::UniformType(_) => {
+                        self.total_voxel_data_size -= mem::size_of::<VoxelData>();
+                    }
+                }
             }
         }
     }

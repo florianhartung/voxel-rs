@@ -27,7 +27,7 @@ imgui-winit-support = "0.11"
 rayon = "1.7.0"
 
 [profile.dev]
-opt-level = 1
+opt-level = 2
 
 [profile.release]
 # enable debug for profiling
