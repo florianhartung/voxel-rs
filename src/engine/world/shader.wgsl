@@ -31,7 +31,7 @@ fn vs_main(
     out.clip_position = camera.view_proj * vec4((model.position), 1.0) ;
 
     var brightness: f32;
-    brightness = dot(model.normal, vec3(1.0, 0.5, 0.7));
+    brightness = 0.2 + 0.8*dot(model.normal, vec3(1.0, 0.5, 0.7));
 
 	var fog_dist: f32;
 	fog_dist = distance(camera.position.xyz, model.position);

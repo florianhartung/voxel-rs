@@ -9,7 +9,6 @@ use strum::IntoEnumIterator;
 
 use crate::engine::rendering::RenderCtx;
 use crate::engine::vector_utils::{AbsValue, RemEuclid};
-use crate::engine::world::chunk::Chunk;
 use crate::engine::world::chunk_data::ChunkData;
 use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
 use crate::engine::world::mesh::{Mesh, Vertex};
@@ -99,14 +98,13 @@ impl ChunkMeshGenerator {
         render_ctx: Rc<RefCell<RenderCtx>>,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         location: ChunkLocation,
-        chunks: &HashMap<ChunkLocation, Chunk>,
+        chunks: &HashMap<ChunkLocation, ChunkData>,
     ) -> Mesh {
         let quads = Self::generate_culled_mesh(
             location,
             &chunks
                 .get(&location)
-                .expect("Can't generate a mesh for a chunk that does not exist")
-                .data,
+                .expect("Can't generate a mesh for a chunk that does not exist"),
             chunks,
         );
 
@@ -116,7 +114,7 @@ impl ChunkMeshGenerator {
     pub fn generate_culled_mesh(
         current_location: ChunkLocation,
         data: &ChunkData,
-        all_chunks: &HashMap<ChunkLocation, Chunk>,
+        all_chunks: &HashMap<ChunkLocation, ChunkData>,
     ) -> Vec<Quad> {
         let mut quads = Vec::new();
 
@@ -161,7 +159,6 @@ impl ChunkMeshGenerator {
                             all_chunks
                                 .get(&chunk_loc)
                                 .expect("Chunk not generated yet")
-                                .data
                                 .get_voxel(
                                     local_location
                                         .try_into_checked()
@@ -207,7 +204,7 @@ impl ChunkMeshGenerator {
                             .try_into_checked()
                             .expect("aa");
 
-                        if chunk.data.get_voxel(neighbor_local).ty == VoxelType::Air {
+                        if chunk.get_voxel(neighbor_local).ty == VoxelType::Air {
                             quads.push(quad);
                         }
                     } else {
@@ -223,8 +220,8 @@ impl ChunkMeshGenerator {
 fn voxel_type_to_color(ty: VoxelType) -> Vector3<f32> {
     match ty {
         VoxelType::Air => Vector3::new(1.0, 0.0, 1.0),
-        VoxelType::Dirt => Vector3::new(0.5, 0.5, 0.0),
-        VoxelType::Grass => Vector3::new(0.1, 0.5, 0.0),
+        VoxelType::Dirt => Vector3::new(0.23, 0.17, 0.0),
+        VoxelType::Grass => Vector3::new(0.09, 0.3, 0.02),
         VoxelType::Stone => Vector3::new(0.3, 0.3, 0.3),
     }
 }

@@ -234,7 +234,7 @@ impl CameraController {
         let is_grounded = chunk_manager
             .chunks
             .get(&chunk_location)
-            .map(|chunk| chunk.data.get_voxel(local_chunk_location).ty != VoxelType::Air)
+            .map(|chunk| chunk.get_voxel(local_chunk_location).ty != VoxelType::Air)
             .unwrap_or(false);
 
         if !self.no_clip {

@@ -54,6 +54,7 @@ pub fn flat_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> Ch
     let mut chunk_voxel_data = ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Air));
 
     let mut perlin = Perlin::new(world_seed);
+    let mut cave_perlin = Perlin::new(world_seed + 1);
 
     let octaves = vec![
         NoiseLayer { scale: 0.002, weight: 1.5 },
@@ -86,7 +87,47 @@ pub fn flat_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> Ch
         } else {
             VoxelType::Air
         };
-        chunk_voxel_data.set_voxel_data(pos, VoxelData::new(voxel_type));
+
+        if coords.y
+            < cave_perlin.get_layered(
+                &[
+                    NoiseLayer { scale: 0.002, weight: 4.0 },
+                    NoiseLayer { scale: 0.02, weight: 1.0 },
+                    NoiseLayer { scale: 0.08, weight: 3.0 },
+                ],
+                [coords.x, coords.z],
+            ) - 15.0
+            && coords.y
+                > cave_perlin.get_layered(
+                    &[
+                        NoiseLayer { scale: 0.002, weight: 3.0 },
+                        NoiseLayer { scale: 0.04, weight: 3.0 },
+                        NoiseLayer { scale: 0.08, weight: 0.3 },
+                    ],
+                    [coords.x, coords.z],
+                ) - 30.0
+            && cave_perlin.get_layered(
+                &[
+                    NoiseLayer { scale: 0.03, weight: 0.7 },
+                    NoiseLayer { scale: 0.08, weight: 0.2 },
+                    NoiseLayer { scale: 0.1, weight: 0.02 },
+                ],
+                [coords.x, coords.z],
+            ) < 0.4 * cave_perlin.get([coords.y * 0.09, 0.0])
+            || cave_perlin.get_layered(
+                &[
+                    NoiseLayer { scale: 0.03, weight: 0.7 },
+                    NoiseLayer { scale: 0.08, weight: 0.2 },
+                    NoiseLayer { scale: 0.1, weight: 0.02 },
+                ],
+                [coords.x, coords.z],
+            ) < -0.8 + 0.5 * cave_perlin.get([coords.y * 0.02, coords.x * 0.02 + coords.z * 0.03])
+                && coords.y > -30.0
+        {
+            // Air
+        } else {
+            chunk_voxel_data.set_voxel_data(pos, VoxelData::new(voxel_type));
+        }
     });
 
     chunk_voxel_data.try_convert_into_uniform();

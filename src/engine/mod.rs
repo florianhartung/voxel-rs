@@ -59,14 +59,14 @@ impl Engine {
             1000.0,
         );
 
-        let mut chunk_manager = ChunkManager::new(camera.position.to_vec());
-        chunk_manager.generate_chunks();
-        chunk_manager.generate_chunk_meshes(&render_ctx, &camera.bind_group_layout);
-
-        let imgui_overlay = ImguiOverlay::new(render_ctx.clone(), &window);
-
         let mut timer = TimerManager::new();
         timer.start("frame");
+
+        let mut chunk_manager = ChunkManager::new(camera.position.to_vec());
+        chunk_manager.generate_chunks(&mut timer);
+        chunk_manager.generate_chunk_meshes(&render_ctx, &camera.bind_group_layout, &mut timer);
+
+        let imgui_overlay = ImguiOverlay::new(render_ctx.clone(), &window);
 
         Self {
             window,
@@ -102,14 +102,11 @@ impl Engine {
         self.chunk_manager
             .update_player_location(self.camera.position.to_vec());
 
-        self.timer.start("chunk_manager_generate");
-        self.chunk_manager.generate_chunks();
-        self.timer.end("chunk_manager_generate");
-
-        self.timer.start("chunk_manager_meshing");
         self.chunk_manager
-            .generate_chunk_meshes(&self.render_ctx, &self.camera.bind_group_layout);
-        self.timer.end("chunk_manager_meshing");
+            .generate_chunks(&mut self.timer);
+
+        self.chunk_manager
+            .generate_chunk_meshes(&self.render_ctx, &self.camera.bind_group_layout, &mut self.timer);
 
         self.timer.start("chunk_manager_unloading");
         self.chunk_manager.unload_chunks();
