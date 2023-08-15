@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = "0.27" # 0.27 is needed for imgui-winit-support
-wgpu = "0.16.0"
+winit = "0.28.6"
+wgpu = "0.17.0"
 bytemuck = { version = "1.13.1", features = ["derive"] }
 cgmath = { git = "https://github.com/rustgd/cgmath.git", features = ["bytemuck"] }
 pollster = "0.3.0"
@@ -21,9 +21,9 @@ strum = "0.24.1"
 strum_macros = "0.24.3"
 noise = "0.8.2"
 static_assertions = "1.1.0"
-imgui-wgpu = "0.23.0"
-imgui = "0.11.0"
-imgui-winit-support = "0.11"
+egui = "0.22.0"
+egui-wgpu = "0.22.0"
+egui-winit = "0.22.0"
 rayon = "1.7.0"
 
 [profile.dev]
@@ -32,3 +32,11 @@ opt-level = 2
 [profile.release]
 # enable debug for profiling
 debug = true
+
+
+[patch.crates-io]
+# Instead of suppressing the wgpu_hal::vulkan::instance logging module, we could also use the newest version of wgpu and egui (egui also depends on wgpu)
+wgpu = { git = "https://github.com/gfx-rs/wgpu.git" }
+egui = { git = "https://github.com/emilk/egui.git" }
+egui-winit = { git = "https://github.com/emilk/egui.git", package = "egui-winit" }
+egui-wgpu = { git = "https://github.com/emilk/egui.git", package = "egui-wgpu" }

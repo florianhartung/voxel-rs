@@ -166,6 +166,8 @@ impl RenderHandle<'_> {
                     }),
                     stencil_ops: None,
                 }),
+                occlusion_query_set: None,
+                timestamp_writes: None,
             });
         self.clear_before_next_render = false;
 
@@ -173,6 +175,8 @@ impl RenderHandle<'_> {
     }
 
     pub fn render2d<T: Renderer2D>(&mut self, renderer: &mut T) {
+        renderer.prepare(&mut self.encoder);
+
         let (load_op, depth_load_op) = if self.clear_before_next_render {
             (
                 wgpu::LoadOp::Clear(wgpu::Color {
@@ -207,6 +211,8 @@ impl RenderHandle<'_> {
                     }),
                     stencil_ops: None,
                 }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
             });
         self.clear_before_next_render = false;
 
@@ -233,5 +239,6 @@ pub trait Renderer {
 }
 
 pub trait Renderer2D {
+    fn prepare(&mut self, _: &mut wgpu::CommandEncoder);
     fn render<'a>(&'a mut self, _: &mut wgpu::RenderPass<'a>);
 }

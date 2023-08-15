@@ -9,8 +9,8 @@ use winit::window::{Window, WindowBuilder};
 
 pub use starter::start;
 
+use crate::engine::debug_overlay::{DebugOverlay, PerFrameStats};
 use crate::engine::frame_timer::FrameTimer;
-use crate::engine::imgui_overlay::{ImguiOverlay, PerFrameStats};
 use crate::engine::rendering::camera::{Camera, CameraController};
 use crate::engine::rendering::RenderCtx;
 use crate::engine::timing::TimerManager;
@@ -18,8 +18,8 @@ use crate::engine::world::chunk_manager::ChunkManager;
 
 #[macro_use]
 mod macros;
+mod debug_overlay;
 mod frame_timer;
-mod imgui_overlay;
 mod rendering;
 mod starter;
 mod timing;
@@ -38,7 +38,7 @@ pub struct Engine {
     camera_controller: CameraController,
     mouse_locked: bool,
 
-    imgui_overlay: ImguiOverlay,
+    egui_interface: DebugOverlay,
     timer: TimerManager,
 }
 
@@ -66,7 +66,7 @@ impl Engine {
         chunk_manager.generate_chunks(&mut timer);
         chunk_manager.generate_chunk_meshes(&render_ctx, &camera.bind_group_layout, &mut timer);
 
-        let imgui_overlay = ImguiOverlay::new(render_ctx.clone(), &window);
+        let imgui_overlay = DebugOverlay::new(render_ctx.clone(), &window);
 
         Self {
             window,
@@ -76,7 +76,7 @@ impl Engine {
             camera_controller: CameraController::new(20.0, 0.5),
             mouse_locked: false,
             chunk_manager,
-            imgui_overlay,
+            egui_interface: imgui_overlay,
             timer,
         }
     }
@@ -86,9 +86,9 @@ impl Engine {
 
         let dt = self.frame_timer.get_dt();
 
-        self.chunk_manager.render_distance = self.imgui_overlay.render_distance;
-        self.chunk_manager.render_empty_chunks = self.imgui_overlay.render_empty_chunks;
-        self.camera_controller.no_clip = self.imgui_overlay.no_clip;
+        self.chunk_manager.render_distance = self.egui_interface.render_distance;
+        self.chunk_manager.render_empty_chunks = self.egui_interface.render_empty_chunks;
+        self.camera_controller.no_clip = self.egui_interface.no_clip;
 
         self.timer.start("update_camera");
         self.camera_controller
@@ -126,7 +126,8 @@ impl Engine {
         };
 
         self.timer.start("imgui_prepare");
-        self.imgui_overlay
+        let mut egui_prep_result = self
+            .egui_interface
             .prepare_render(&self.window, stats, &mut self.timer);
         self.timer.end("imgui_prepare");
 
@@ -136,7 +137,7 @@ impl Engine {
         self.timer.end("render_3d");
 
         self.timer.start("render_ui");
-        handle.render2d(&mut self.imgui_overlay);
+        handle.render2d(&mut egui_prep_result);
         self.timer.end("render_ui");
 
         self.timer.start("render_final");
@@ -146,8 +147,9 @@ impl Engine {
 
     fn handle_event(&mut self, event: Event<()>, control_flow: &mut ControlFlow) {
         if self.handle_resize(&event) {
-            self.imgui_overlay
-                .handle_event(&event, &self.window);
+            if let Event::WindowEvent { event, .. } = event {
+                self.egui_interface.handle_event(&event);
+            }
             return;
         }
 
@@ -188,8 +190,9 @@ impl Engine {
             _ => {}
         }
 
-        self.imgui_overlay
-            .handle_event(&event, &self.window);
+        if let Event::WindowEvent { event, .. } = event {
+            self.egui_interface.handle_event(&event);
+        }
     }
 
     fn handle_resize(&mut self, event: &Event<()>) -> bool {
