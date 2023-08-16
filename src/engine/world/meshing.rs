@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::ops::Neg;
 use std::rc::Rc;
 
@@ -98,7 +97,7 @@ impl ChunkMeshGenerator {
         render_ctx: Rc<RefCell<RenderCtx>>,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         location: ChunkLocation,
-        chunks: &HashMap<ChunkLocation, ChunkData>,
+        chunks: &hashbrown::HashMap<ChunkLocation, ChunkData>,
     ) -> Mesh {
         let quads = Self::generate_culled_mesh(
             location,
@@ -114,7 +113,7 @@ impl ChunkMeshGenerator {
     pub fn generate_culled_mesh(
         current_location: ChunkLocation,
         data: &ChunkData,
-        all_chunks: &HashMap<ChunkLocation, ChunkData>,
+        all_chunks: &hashbrown::HashMap<ChunkLocation, ChunkData>,
     ) -> Vec<Quad> {
         let mut quads = Vec::new();
 

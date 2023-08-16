@@ -25,6 +25,7 @@ egui = "0.22.0"
 egui-wgpu = "0.22.0"
 egui-winit = "0.22.0"
 rayon = "1.7.0"
+hashbrown = "0.14.0"
 
 [profile.dev]
 opt-level = 2

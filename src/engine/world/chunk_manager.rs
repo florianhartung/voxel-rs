@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::vec_deque::VecDeque;
-use std::collections::HashMap;
 use std::mem;
 use std::rc::Rc;
 
@@ -20,8 +19,8 @@ use crate::engine::world::worldgen::WorldGenerator;
 use crate::engine::world::CHUNK_SIZE;
 
 pub struct ChunkManager {
-    pub chunks: HashMap<ChunkLocation, ChunkData>,
-    pub chunk_meshes: HashMap<ChunkLocation, ChunkMesh>,
+    pub chunks: hashbrown::HashMap<ChunkLocation, ChunkData>,
+    pub chunk_meshes: hashbrown::HashMap<ChunkLocation, ChunkMesh>,
     chunk_generator: WorldGenerator,
     last_player_position: ChunkLocation,
     chunk_generate_queue: VecDeque<ChunkLocation>,
@@ -43,8 +42,8 @@ impl ChunkManager {
         let chunk_generator = WorldGenerator::new(123);
 
         Self {
-            chunks: HashMap::new(),
-            chunk_meshes: HashMap::new(),
+            chunks: hashbrown::HashMap::new(),
+            chunk_meshes: hashbrown::HashMap::new(),
             chunk_generator,
             last_player_position: ChunkLocation::from_world_location_f32(player_location),
             chunk_generate_queue: VecDeque::new(),
