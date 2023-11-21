@@ -1,8 +1,9 @@
 use cgmath::num_traits::Pow;
+use cgmath::Vector3;
 use noise::{NoiseFn, Perlin};
 
 use crate::engine::world::chunk_data::ChunkData;
-use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
+use crate::engine::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
 use crate::engine::world::voxel_data::{VoxelData, VoxelType};
 
 pub struct WorldGenerator {
@@ -48,6 +49,8 @@ pub fn perlin_3d(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {
 
     chunk_voxel_data
 }
+const EMPTY_CHUNK: ChunkData = ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Air));
+const STONE_CHUNK: ChunkData = ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Stone));
 
 pub fn flat_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {
     // Create empty chunk data
@@ -63,6 +66,14 @@ pub fn flat_perlin_terrain(world_seed: u32, chunk_location: ChunkLocation) -> Ch
         NoiseLayer { scale: 0.07, weight: 0.06 },
         NoiseLayer { scale: 0.4, weight: 0.03 },
     ];
+
+    if chunk_location.y > 2 {
+        return EMPTY_CHUNK.clone();
+    }
+
+    if chunk_location.y < -3 {
+        return STONE_CHUNK.clone();
+    }
 
     // Fill empty chunk data with randomly selected voxels
     LocalChunkLocation::iter().for_each(|pos| {

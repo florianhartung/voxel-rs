@@ -1,16 +1,17 @@
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::time::Instant;
 
 pub struct TimerManager {
     pub current_timers: HashMap<String, Instant>,
-    pub finished_timers: Vec<(String, f32)>,
+    pub finished_timers: HashMap<String, f32>,
 }
 
 impl TimerManager {
     pub fn new() -> Self {
         Self {
             current_timers: HashMap::new(),
-            finished_timers: Vec::new(),
+            finished_timers: HashMap::new(),
         }
     }
 
@@ -26,7 +27,7 @@ impl TimerManager {
             .expect("timer was not started yet");
         let duration = Instant::now().duration_since(start).as_secs_f32();
         self.finished_timers
-            .push((name.as_ref().to_string(), duration));
+            .insert(name.as_ref().to_string(), duration);
 
         duration
     }
@@ -38,8 +39,11 @@ impl TimerManager {
         duration
     }
 
-    pub fn get_all(&self) -> &Vec<(String, f32)> {
-        &self.finished_timers
+    pub fn get_all(&self) -> Vec<(&String, f32)> {
+        self.finished_timers
+            .iter()
+            .map(|x| (x.0, *x.1))
+            .collect_vec()
     }
 
     pub fn clear(&mut self) {

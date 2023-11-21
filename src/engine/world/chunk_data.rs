@@ -4,7 +4,7 @@ use crate::engine::world::chunk_data::ChunkData::{UniformType, Voxels};
 use crate::engine::world::location::{LocalChunkLocation, OutsideBounds, WithinBounds};
 use crate::engine::world::voxel_data::{VoxelData, VoxelType};
 use crate::engine::world::CHUNK_SIZE;
-
+#[derive(Clone)]
 pub enum ChunkData {
     Voxels(Box<[VoxelData; CHUNK_SIZE.pow(3)]>),
     UniformType(VoxelData),
@@ -32,7 +32,7 @@ impl ChunkData {
         )
     }
 
-    pub fn new_with_uniform_data(voxel_data: VoxelData) -> Self {
+    pub const fn new_with_uniform_data(voxel_data: VoxelData) -> Self {
         UniformType(voxel_data)
     }
 

@@ -4,7 +4,7 @@ pub struct VoxelData {
 }
 
 impl VoxelData {
-    pub fn new(ty: VoxelType) -> Self {
+    pub const fn new(ty: VoxelType) -> Self {
         Self { ty }
     }
 }

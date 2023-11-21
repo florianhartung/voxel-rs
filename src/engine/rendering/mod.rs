@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use wgpu::TextureFormat;
+use wgpu::{PresentMode, TextureFormat};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -79,7 +79,7 @@ impl RenderCtx {
             format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: surface_capabilities.present_modes[0],
+            present_mode: PresentMode::AutoNoVsync,
             alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: Vec::new(),
         };

@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::vec_deque::VecDeque;
 use std::mem;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use cgmath::Vector3;
 use itertools::{iproduct, Itertools};
@@ -69,6 +70,9 @@ impl ChunkManager {
     }
 
     pub fn generate_chunks(&mut self, timer: &mut TimerManager) {
+        const MAX_TIME: Duration = Duration::from_millis(2);
+        let start = Instant::now();
+
         timer.start("chunk_manager_generate_chunks");
         let load_distance = self.render_distance + 1;
         let last_player_position = self.last_player_position;
@@ -89,31 +93,33 @@ impl ChunkManager {
         }
         timer.end("chunk_manager_fill_queue");
 
-        timer.start("chunk_manager_generation");
-        let generated_chunks = self
-            .chunk_generate_queue
-            .drain(0..(8.min(self.chunk_generate_queue.len())))
-            .par_bridge()
-            .map(|location| (location, self.chunk_generator.get_chunk_data_at(location)))
-            .collect::<Vec<_>>();
-        timer.end("chunk_manager_generation");
+        while start.elapsed() < MAX_TIME && self.chunk_generate_queue.len() > 0 {
+            timer.start("chunk_manager_generation");
+            let generated_chunks = self
+                .chunk_generate_queue
+                .drain(0..(4.min(self.chunk_generate_queue.len())))
+                .par_bridge()
+                .map(|location| (location, self.chunk_generator.get_chunk_data_at(location)))
+                .collect::<Vec<_>>();
+            timer.end("chunk_manager_generation");
 
-        timer.start("chunk_manager_save");
-        generated_chunks
-            .into_iter()
-            .for_each(|(location, data)| {
-                match &data {
-                    ChunkData::Voxels(_) => {
-                        self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
+            timer.start("chunk_manager_save");
+            generated_chunks
+                .into_iter()
+                .for_each(|(location, data)| {
+                    match &data {
+                        ChunkData::Voxels(_) => {
+                            self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
+                        }
+                        ChunkData::UniformType(_) => {
+                            self.total_voxel_data_size += mem::size_of::<VoxelData>();
+                        }
                     }
-                    ChunkData::UniformType(_) => {
-                        self.total_voxel_data_size += mem::size_of::<VoxelData>();
-                    }
-                }
 
-                self.chunks.insert(location, data);
-            });
-        timer.end("chunk_manager_save");
+                    self.chunks.insert(location, data);
+                });
+            timer.end("chunk_manager_save");
+        }
 
         timer.end("chunk_manager_generate_chunks");
     }
@@ -124,6 +130,9 @@ impl ChunkManager {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         timer: &mut TimerManager,
     ) {
+        const MAX_TIME: Duration = Duration::from_millis(2);
+        let start = Instant::now();
+
         timer.start("chunk_manager_meshing");
         timer.start("chunk_manager_meshing_fill_queue");
         if self.chunk_mesh_queue.is_empty() && self.current_chunk_mesh_radius + 3 < self.current_chunk_generate_radius {
@@ -144,40 +153,41 @@ impl ChunkManager {
         }
         timer.end("chunk_manager_meshing_fill_queue");
 
-        timer.start("chunk_manager_meshing_generate_meshes");
+        while start.elapsed() < MAX_TIME && self.chunk_mesh_queue.len() > 0 {
+            timer.start("chunk_manager_meshing_generate_meshes");
+            let generated_meshes = self
+                .chunk_mesh_queue
+                .drain(0..(4.min(self.chunk_mesh_queue.len())))
+                .par_bridge()
+                .map(|location| {
+                    let data = self
+                        .chunks
+                        .get(&location)
+                        .expect("Tried to generate mesh for chunk without data");
+                    (location, data)
+                })
+                .map(|(location, data)| {
+                    let quads = ChunkMeshGenerator::generate_culled_mesh(location, data, &self.chunks);
 
-        let generated_meshes = self
-            .chunk_mesh_queue
-            .drain(0..(8.min(self.chunk_mesh_queue.len())))
-            .par_bridge()
-            .map(|location| {
-                let data = self
-                    .chunks
-                    .get(&location)
-                    .expect("Tried to generate mesh for chunk without data");
-                (location, data)
-            })
-            .map(|(location, data)| {
-                let quads = ChunkMeshGenerator::generate_culled_mesh(location, data, &self.chunks);
+                    (location, quads)
+                })
+                .collect::<Vec<_>>();
+            timer.end("chunk_manager_meshing_generate_meshes");
 
-                (location, quads)
-            })
-            .collect::<Vec<_>>();
-        timer.end("chunk_manager_meshing_generate_meshes");
+            timer.start("chunk_manager_meshing_save");
+            generated_meshes
+                .into_iter()
+                .for_each(|(location, quads)| {
+                    let mesh = ChunkMeshGenerator::generate_mesh_from_quads(location, quads, render_ctx.clone(), camera_bind_group_layout);
+                    self.total_vertices += mesh.vertices.len();
+                    self.total_triangles += mesh.indices.len() / 3;
+                    self.total_mesh_data_size += mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(mesh.vertices.as_slice());
 
-        timer.start("chunk_manager_meshing_save");
-        generated_meshes
-            .into_iter()
-            .for_each(|(location, quads)| {
-                let mesh = ChunkMeshGenerator::generate_mesh_from_quads(location, quads, render_ctx.clone(), camera_bind_group_layout);
-                self.total_vertices += mesh.vertices.len();
-                self.total_triangles += mesh.indices.len() / 3;
-                self.total_mesh_data_size += mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(mesh.vertices.as_slice());
-
-                self.chunk_meshes
-                    .insert(location, ChunkMesh::new(mesh));
-            });
-        timer.end("chunk_manager_meshing_save");
+                    self.chunk_meshes
+                        .insert(location, ChunkMesh::new(mesh));
+                });
+            timer.end("chunk_manager_meshing_save");
+        }
 
         timer.end("chunk_manager_meshing");
     }

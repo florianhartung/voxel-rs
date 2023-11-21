@@ -82,6 +82,7 @@ impl Engine {
     }
 
     fn render(&mut self) {
+        self.timer.start("render_all");
         let render_ctx = self.render_ctx.borrow();
 
         let dt = self.frame_timer.get_dt();
@@ -143,6 +144,7 @@ impl Engine {
         self.timer.start("render_final");
         handle.finish_rendering();
         self.timer.end("render_final");
+        self.timer.end("render_all");
     }
 
     fn handle_event(&mut self, event: Event<()>, control_flow: &mut ControlFlow) {
