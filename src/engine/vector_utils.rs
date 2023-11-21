@@ -1,6 +1,6 @@
 use cgmath::Vector3;
 
-macro_rules! impl_rem_eulid_elem_wise {
+macro_rules! impl_rem_euclid_elem_wise {
     ($($ty:ty),+) => {
         $(
             impl RemEuclid<$ty> for Vector3<$ty> {
@@ -16,7 +16,7 @@ pub trait RemEuclid<T> {
     fn rem_euclid(self, rhs: T) -> Self;
 }
 
-impl_rem_eulid_elem_wise!(u8, i8, u16, i16, u32, i32, u64, i64, u128, i128);
+impl_rem_euclid_elem_wise!(u8, i8, u16, i16, u32, i32, u64, i64, u128, i128);
 
 pub trait MapElemWise<A, T> {
     fn map_elem_wise<F: Fn(A) -> T>(self, f: F) -> Vector3<T>;
