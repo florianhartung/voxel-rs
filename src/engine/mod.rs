@@ -5,7 +5,7 @@ use cgmath::{Deg, EuclideanSpace};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::{Window, WindowBuilder};
+use winit::window::{Fullscreen, Window, WindowBuilder};
 
 pub use starter::start;
 
@@ -27,6 +27,13 @@ pub(crate) mod util;
 pub mod vector_utils;
 pub mod world;
 
+pub struct EngineConfig {
+    pub run_benchmark: bool,
+    pub vsync: bool,
+    pub window_size: (u32, u32),
+    pub fullscreen: bool,
+}
+
 pub struct Engine {
     window: Window,
     frame_timer: FrameTimer,
@@ -43,9 +50,16 @@ pub struct Engine {
 }
 
 impl Engine {
-    fn new(event_loop: &EventLoop<()>) -> Self {
-        let window = create_basic_window(event_loop);
-        let render_ctx = Rc::new(RefCell::new(pollster::block_on(RenderCtx::new(&window))));
+    fn new(event_loop: &EventLoop<()>, engine_config: EngineConfig) -> Self {
+        let window = WindowBuilder::new()
+            .with_inner_size(PhysicalSize::new(engine_config.window_size.0, engine_config.window_size.1))
+            .build(event_loop)
+            .unwrap();
+        if engine_config.fullscreen {
+            window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+        }
+
+        let render_ctx = Rc::new(RefCell::new(pollster::block_on(RenderCtx::new(&window, engine_config.vsync))));
 
         let camera = Camera::new(
             &render_ctx.borrow(),
@@ -73,7 +87,7 @@ impl Engine {
             frame_timer: FrameTimer::new(),
             render_ctx,
             camera,
-            camera_controller: CameraController::new(20.0, 0.5),
+            camera_controller: CameraController::new(100.0, 0.5),
             mouse_locked: false,
             chunk_manager,
             egui_interface: imgui_overlay,
@@ -92,8 +106,10 @@ impl Engine {
         self.camera_controller.no_clip = self.egui_interface.no_clip;
 
         self.timer.start("update_camera");
+
         self.camera_controller
             .update_physics(&mut self.camera, &self.chunk_manager, dt);
+
         self.camera_controller
             .update_camera(&mut self.camera, dt);
         self.camera.update_buffer(&render_ctx);
@@ -124,6 +140,7 @@ impl Engine {
             total_voxel_data_size: self.chunk_manager.total_voxel_data_size,
             total_mesh_data_size: self.chunk_manager.total_mesh_data_size,
             currently_rendered_chunk_radius: self.chunk_manager.current_chunk_mesh_radius - 1,
+            current_datagen_queue_size: self.chunk_manager.chunk_generate_queue.len(),
         };
 
         self.timer.start("imgui_prepare");
@@ -224,13 +241,4 @@ impl Engine {
 fn get_window_center_position(window: &Window) -> PhysicalPosition<u32> {
     let inner_size = window.inner_size();
     PhysicalPosition::new(inner_size.width / 2, inner_size.height / 2)
-}
-
-fn create_basic_window(event_loop: &EventLoop<()>) -> Window {
-    let window = WindowBuilder::new()
-        .with_inner_size(PhysicalSize::new(800, 600))
-        .build(event_loop)
-        .unwrap();
-
-    window
 }

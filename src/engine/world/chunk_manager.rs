@@ -24,7 +24,7 @@ pub struct ChunkManager {
     pub chunk_meshes: hashbrown::HashMap<ChunkLocation, ChunkMesh>,
     chunk_generator: WorldGenerator,
     last_player_position: ChunkLocation,
-    chunk_generate_queue: VecDeque<ChunkLocation>,
+    pub chunk_generate_queue: VecDeque<ChunkLocation>,
     chunk_mesh_queue: VecDeque<ChunkLocation>,
     current_chunk_generate_radius: i32,
     pub current_chunk_mesh_radius: i32,

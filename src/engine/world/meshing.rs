@@ -1,15 +1,18 @@
 use std::cell::RefCell;
-use std::ops::Neg;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::ops::{Neg, Range};
 use std::rc::Rc;
 
 use cgmath::prelude::*;
 use cgmath::Vector3;
+use fastrand::Rng;
 use strum::IntoEnumIterator;
 
 use crate::engine::rendering::RenderCtx;
 use crate::engine::vector_utils::{AbsValue, RemEuclid};
 use crate::engine::world::chunk_data::ChunkData;
-use crate::engine::world::location::{ChunkLocation, LocalChunkLocation};
+use crate::engine::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
 use crate::engine::world::mesh::{Mesh, Vertex};
 use crate::engine::world::meshing::direction::Direction;
 use crate::engine::world::meshing::quad::{FaceData, Quad};
@@ -189,7 +192,10 @@ impl ChunkMeshGenerator {
                     let quad = Quad::new(
                         pos,
                         dir,
-                        FaceData::new(voxel_type_to_color(data.get_voxel(pos).ty)),
+                        FaceData::new(voxel_type_to_color(
+                            data.get_voxel(pos).ty,
+                            WorldLocation::new(current_location, pos.into_unknown()),
+                        )),
                         [ao_1, ao_2, ao_3, ao_4],
                         reverse_quad_orientation,
                     );
@@ -216,11 +222,24 @@ impl ChunkMeshGenerator {
     }
 }
 
-fn voxel_type_to_color(ty: VoxelType) -> Vector3<f32> {
+fn voxel_type_to_color(ty: VoxelType, voxel_position: WorldLocation) -> Vector3<f32> {
+    let mut hasher = DefaultHasher::new();
+    voxel_position.0.hash(&mut hasher);
+    let mut rng = Rng::with_seed(hasher.finish());
+
     match ty {
         VoxelType::Air => Vector3::new(1.0, 0.0, 1.0),
-        VoxelType::Dirt => Vector3::new(0.23, 0.17, 0.0),
-        VoxelType::Grass => Vector3::new(0.09, 0.3, 0.02),
-        VoxelType::Stone => Vector3::new(0.3, 0.3, 0.3),
+        VoxelType::Dirt => Vector3::new(rand(&mut rng, 0.12..0.18), rand(&mut rng, 0.06..0.14), 0.02),
+        VoxelType::Grass => Vector3::new(rand(&mut rng, 0.07..0.11), rand(&mut rng, 0.28..0.32), rand(&mut rng, 0.01..0.04)),
+        VoxelType::Stone => v(rand(&mut rng, 0.25..0.35)),
     }
+}
+
+#[inline]
+fn v(f: f32) -> Vector3<f32> {
+    Vector3::new(f, f, f)
+}
+#[inline]
+fn rand(rng: &mut Rng, range: Range<f32>) -> f32 {
+    rng.f32() * (range.end - range.start) + range.start
 }

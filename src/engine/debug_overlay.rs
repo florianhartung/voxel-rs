@@ -111,6 +111,7 @@ impl DebugOverlay {
                 ui.label(format!("V: {}  T: {}", stats.num_vertices, stats.num_triangles));
                 ui.label(format!("Chunks: {}", stats.num_chunks));
                 ui.checkbox(&mut self.render_empty_chunks, "render empty chunks");
+                ui.label(format!("Chunk gen queue size: {}", stats.current_datagen_queue_size));
             });
 
             ui.collapsing("Timing", |ui| {
@@ -180,6 +181,7 @@ pub struct PerFrameStats {
     pub total_voxel_data_size: usize,
     pub total_mesh_data_size: usize,
     pub currently_rendered_chunk_radius: i32,
+    pub current_datagen_queue_size: usize,
 }
 
 trait CollapsingOpened {

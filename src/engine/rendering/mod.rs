@@ -32,7 +32,7 @@ pub struct RenderCtx {
 }
 
 impl RenderCtx {
-    pub async fn new(window: &Window) -> Self {
+    pub async fn new(window: &Window, enable_vsync: bool) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -79,7 +79,11 @@ impl RenderCtx {
             format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: PresentMode::AutoNoVsync,
+            present_mode: if enable_vsync {
+                PresentMode::AutoVsync
+            } else {
+                PresentMode::AutoNoVsync
+            },
             alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: Vec::new(),
         };

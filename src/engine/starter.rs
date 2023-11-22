@@ -1,12 +1,12 @@
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::EventLoop;
 
-use crate::engine::Engine;
+use crate::engine::{Engine, EngineConfig};
 
-pub fn start() -> ! {
+pub fn start(engine_config: EngineConfig) -> ! {
     let event_loop = EventLoop::new();
 
-    let mut engine = Engine::new(&event_loop);
+    let mut engine = Engine::new(&event_loop, engine_config);
 
     // Workaround for erroneous first resize winit event on windows
     let mut first_resize_detector = FirstResizeDetector::new();

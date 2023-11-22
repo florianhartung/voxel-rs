@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use bytemuck::Zeroable;
 use cgmath::num_traits::FloatConst;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Rad, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Rad, Vector3, Zero};
+use log::info;
 use wgpu::util::DeviceExt;
 use wgpu::BindingType;
 use winit::event::{ElementState, VirtualKeyCode};
@@ -11,6 +12,10 @@ use crate::engine::rendering::RenderCtx;
 use crate::engine::world::chunk_manager::ChunkManager;
 use crate::engine::world::location::WorldLocation;
 use crate::engine::world::voxel_data::VoxelType;
+
+const CAMERA_EYE_OFFSET: f32 = 100.0;
+const GRAVITY: f32 = 300.0;
+const JUMP_ACCELERATION: f32 = 10.0;
 
 pub struct Camera {
     pub position: Point3<f32>,
@@ -47,7 +52,7 @@ impl Camera {
     {
         let position = position.into();
         let raw = RawCamera {
-            position: [position.x, position.y, position.z, 0.0],
+            position: [position.x, position.y + CAMERA_EYE_OFFSET, position.z, 0.0],
             view_proj: [[0.0f32; 4]; 4],
         };
 
@@ -104,7 +109,7 @@ impl Camera {
         let (sin_yaw, cos_yaw) = (self.yaw.0 as f32).sin_cos();
 
         let view = Matrix4::look_to_rh(
-            self.position,
+            self.position + CAMERA_EYE_OFFSET * Vector3::unit_y(),
             Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize(),
             Vector3::unit_y(),
         );
@@ -162,8 +167,9 @@ pub struct CameraController {
     rotate_vertical: f64,
     speed: f32,
     sensitivity: f32,
-    jumping: bool,
+    is_jumping: bool,
     pub no_clip: bool,
+    pub is_grounded: bool,
 }
 
 impl CameraController {
@@ -181,8 +187,9 @@ impl CameraController {
             rotate_vertical: 0.0,
             last_rotate_horizontal: 0.0,
             last_rotate_vertical: 0.0,
-            jumping: false,
+            is_jumping: false,
             no_clip: true,
+            is_grounded: false,
         }
     }
 
@@ -209,7 +216,7 @@ impl CameraController {
             }
             Space => {
                 self.up = is_pressed;
-                self.jumping = is_pressed;
+                self.is_jumping = is_pressed;
                 true
             }
             LShift => {
@@ -226,30 +233,64 @@ impl CameraController {
     }
 
     pub fn update_physics(&mut self, camera: &mut Camera, chunk_manager: &ChunkManager, dt: Duration) {
-        const GRAVITY: Vector3<f32> = Vector3::new(0.0, -20.0, 0.0);
-
-        let (chunk_location, local_chunk_location) =
-            WorldLocation(camera.position.to_vec().cast::<i32>().unwrap() + Vector3::new(0, -2, 0)).separate();
-
-        let is_grounded = chunk_manager
-            .chunks
-            .get(&chunk_location)
-            .map(|chunk| chunk.get_voxel(local_chunk_location).ty != VoxelType::Air)
-            .unwrap_or(false);
-
         if !self.no_clip {
-            if !is_grounded {
-                camera.velocity += dt.as_secs_f32() * GRAVITY;
+            if !self.is_grounded || self.is_jumping {
+                let (chunk_location, local_chunk_location) = WorldLocation(
+                    (camera.position.to_vec() - 1.0 * Vector3::<f32>::unit_y())
+                        .cast::<i32>()
+                        .unwrap(),
+                )
+                .separate();
+
+                let mut is_grounded = chunk_manager
+                    .chunks
+                    .get(&chunk_location)
+                    .map(|chunk| chunk.get_voxel(local_chunk_location).ty != VoxelType::Air)
+                    .unwrap_or(false);
+
+                if !is_grounded {
+                    camera.velocity.y -= dt.as_secs_f32() * GRAVITY;
+                    dbg!(&camera.velocity);
+                } else {
+                    if self.is_jumping {
+                        camera.velocity.y += JUMP_ACCELERATION;
+                        self.is_grounded = false;
+                    }
+                }
+
+                if !is_grounded {
+                    let mut vertical_distance = dt.as_secs_f32() * camera.velocity.y;
+
+                    if vertical_distance < 0.0 {
+                        let mut current_neg_distance = 0.0;
+
+                        while current_neg_distance < -vertical_distance {
+                            let (chunk_location, local_chunk_location) = WorldLocation(
+                                (camera.position.to_vec() - (1.0 + current_neg_distance) * Vector3::<f32>::unit_y())
+                                    .cast::<i32>()
+                                    .unwrap(),
+                            )
+                            .separate();
+
+                            is_grounded = chunk_manager
+                                .chunks
+                                .get(&chunk_location)
+                                .map(|chunk| chunk.get_voxel(local_chunk_location).ty != VoxelType::Air)
+                                .unwrap_or(false);
+
+                            if is_grounded {
+                                vertical_distance = -current_neg_distance;
+                                camera.velocity = Vector3::zeroed();
+
+                                break;
+                            }
+                            current_neg_distance += 1.0;
+                        }
+                    }
+
+                    camera.position.y += vertical_distance;
+                }
             }
-            if is_grounded {
-                camera.velocity = Vector3::zeroed();
-                camera.position.y = camera.position.y.ceil();
-            }
-            if is_grounded && self.jumping {
-                camera.velocity += Vector3::new(0.0, 10.0, 0.0);
-                self.jumping = false;
-            }
-            camera.position += dt.as_secs_f32() * camera.velocity;
         }
     }
 
@@ -262,6 +303,10 @@ impl CameraController {
 
         let forward_speed = if self.forward { self.speed } else { 0.0 } + if self.backward { -self.speed } else { 0.0 };
         let right_speed = if self.right { self.speed } else { 0.0 } + if self.left { -self.speed } else { 0.0 };
+
+        if !forward_speed.is_zero() || !right_speed.is_zero() {
+            self.is_grounded = false;
+        }
 
         camera.position += forward * forward_speed * dt;
         camera.position += right * right_speed * dt;
