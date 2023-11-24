@@ -6,11 +6,12 @@ every voxel.
 
 ## Planned features
 
-- Raytracing using compute shaders
+- Raytracing using compute shaders (or Vulkan Raytracing)
 - PBR: Physically based rendering
 - Collision so the user can walk
-- Ability to edit the world such as by placing/breaking blocks
-- World persistence
+- Ability to edit the world such as by placing and breaking a lot of blocks at once (this data manipulation may also be done using compute shaders)
+- Efficient world persistence
+- Fast world generation on the GPU using compute shaders
 
 ## Where will this go?
 
