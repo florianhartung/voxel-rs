@@ -1,4 +1,4 @@
-# 🚀A custom voxel engine written in Rust
+# 🚀A voxel engine written in Rust
 
 A very basic voxel engine using WGPU as a rendering library.
 The goal of this project is to be able to render lots of voxels with (almost unique) properties such as a color for
