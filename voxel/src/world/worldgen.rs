@@ -1,25 +1,76 @@
+use cgmath::num_traits::real::Real;
 use cgmath::num_traits::Pow;
-use cgmath::Vector3;
 use noise::{NoiseFn, Perlin};
 
-use crate::engine::world::chunk_data::ChunkData;
-use crate::engine::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
-use crate::engine::world::voxel_data::{VoxelData, VoxelType};
+use crate::world::chunk_data::ChunkData;
+use crate::world::location::{ChunkLocation, LocalChunkLocation};
+use crate::world::voxel_data::{VoxelData, VoxelType};
+use crate::world::CHUNK_SIZE;
 
 pub struct WorldGenerator {
-    _world_seed: u32,
+    world_seed: u32,
 }
 
 impl WorldGenerator {
     pub fn new(world_seed: u32) -> Self {
-        Self { _world_seed: world_seed }
+        Self { world_seed }
     }
 
     pub fn get_chunk_data_at(&self, chunk_location: ChunkLocation) -> ChunkData {
         // ChunkData::new_with_uniform_data(VoxelData::world(VoxelType::Dirt))
-        flat_perlin_terrain(1, chunk_location)
-        // perlin_3d(1, chunk_location)
+        flat_perlin_terrain(self.world_seed, chunk_location)
+        //perlin_3d(1, chunk_location)
+        // ChunkData::Voxels(Box::new(CONST_CHUNK.clone()))
     }
+}
+
+const CONST_CHUNK: [VoxelData; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] = a();
+
+const fn a() -> [VoxelData; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
+    let mut data = [VoxelData::new(VoxelType::Air); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+
+    // let mut x: usize = 0;
+    // let mut y: usize = 0;
+    // let mut z: usize = 0;
+
+    // while x < CHUNK_SIZE {
+    //     while z < CHUNK_SIZE {
+    //         let height = (x + z) / 2;
+    //         while y < CHUNK_SIZE {
+    //             if y < height {
+    //                 let index = z * CHUNK_SIZE.pow(2) + y * CHUNK_SIZE + x;
+    //                 data[index] = VoxelData::new(VoxelType::Grass);
+    //             }
+    //             y += 1;
+    //         }
+    //
+    //         z += 1;
+    //     }
+    //     x += 1;
+    // }
+
+    data[0] = VoxelData::new(VoxelType::Dirt);
+    data[CHUNK_SIZE] = VoxelData::new(VoxelType::Stone);
+    data[CHUNK_SIZE * CHUNK_SIZE] = VoxelData::new(VoxelType::Grass);
+
+    data
+}
+
+pub fn waves(chunk_location: ChunkLocation) -> ChunkData {
+    let mut chunk_voxel_data = ChunkData::new_with_uniform_data(VoxelData::new(VoxelType::Air));
+
+    LocalChunkLocation::iter().for_each(|loc| {
+        let coords = loc.to_f64() + chunk_location.to_world_location_f64();
+
+        let height = 5.0 * (coords.x / 10.0).sin() + 5.0 * (coords.z / 10.0).sin();
+        if coords.y < height {
+            chunk_voxel_data.set_voxel_data(loc, VoxelData::new(VoxelType::Grass));
+        }
+    });
+
+    chunk_voxel_data.try_convert_into_uniform();
+
+    chunk_voxel_data
 }
 
 pub fn perlin_3d(world_seed: u32, chunk_location: ChunkLocation) -> ChunkData {

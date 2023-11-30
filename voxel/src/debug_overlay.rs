@@ -1,7 +1,7 @@
-use std::cell::RefCell;
+use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::mem;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use cgmath::Vector3;
 use egui::{ClippedPrimitive, CollapsingHeader, CollapsingResponse, Color32, Context, Slider, Ui, Visuals, WidgetText};
@@ -11,15 +11,15 @@ use wgpu::{CommandEncoder, RenderPass};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-use crate::engine::rendering::{RenderCtx, Renderer2D};
-use crate::engine::timing::TimerManager;
+use crate::rendering::{RenderCtx, Renderer2D};
+use crate::timing::TimerManager;
 
 pub struct DebugOverlay {
     winit_state: egui_winit::State,
     context: Context,
     renderer: egui_wgpu::Renderer,
     screen_descriptor: ScreenDescriptor,
-    render_ctx: Rc<RefCell<RenderCtx>>,
+    render_ctx: Arc<RenderCtx>,
 
     paint_jobs: Option<Vec<ClippedPrimitive>>,
 
@@ -27,15 +27,22 @@ pub struct DebugOverlay {
     pub render_distance: i32,
     pub render_empty_chunks: bool,
     pub no_clip: bool,
+
+    output: Option<egui::FullOutput>,
 }
 
 impl DebugOverlay {
-    pub fn new(render_ctx: Rc<RefCell<RenderCtx>>, window: &Window) -> Self {
-        let winit_state = egui_winit::State::new(window);
+    pub fn new(render_ctx: Arc<RenderCtx>, window: &Window) -> Self {
         let context = Context::default();
+        let winit_state = egui_winit::State::new(context.viewport_id(), window, None, None);
+
         let render_pass = egui_wgpu::Renderer::new(
-            &render_ctx.borrow().device,
-            render_ctx.borrow().surface_config.format,
+            &render_ctx.device,
+            render_ctx
+                .surface_config
+                .try_lock()
+                .expect("i hope this isn't locked")
+                .format,
             Some(Depth32Float),
             1,
         );
@@ -50,17 +57,20 @@ impl DebugOverlay {
             context,
             renderer: render_pass,
             screen_descriptor,
-            last_fps_counts: VecDeque::with_capacity(240),
-            render_distance: 8,
+            last_fps_counts: VecDeque::with_capacity(10),
+            render_distance: 12,
             render_empty_chunks: false,
             no_clip: true,
             render_ctx,
             paint_jobs: None,
+            output: None,
         }
     }
 
     pub fn handle_event(&mut self, event: &WindowEvent) -> bool {
-        let result = self.winit_state.on_event(&self.context, event);
+        let result = self
+            .winit_state
+            .on_window_event(&self.context, event);
 
         if let WindowEvent::Resized(new_size) = &event {
             self.screen_descriptor.size_in_pixels = [new_size.width, new_size.height];
@@ -71,7 +81,7 @@ impl DebugOverlay {
         result.consumed
     }
 
-    pub fn prepare_render<'a>(&'a mut self, window: &Window, stats: PerFrameStats, timer: &mut TimerManager) -> OverlayRenderer<'a> {
+    pub fn prepare_render(&mut self, window: &Window, stats: PerFrameStats, timer: &mut TimerManager) {
         if self.last_fps_counts.len() == self.last_fps_counts.capacity() {
             self.last_fps_counts.pop_front();
         }
@@ -102,6 +112,16 @@ impl DebugOverlay {
                 ui.label(format!("Mesh data: {}MB", stats.total_mesh_data_size / 2_i32.pow(20) as usize));
             });
 
+            ui.collapsing_opened("World generation", |ui| {
+                ui.label(format!("Total chunks: {}", stats.num_chunks));
+                ui.label(format!("Chunk gen queue size: {}", stats.current_chunkgen_queue_size));
+                ui.label(format!(
+                    "Generated pending chunk queue size: {}",
+                    stats.current_chunkdata_buffer_size
+                ));
+                ui.label(format!("Chunk mesh queue size: {}", stats.current_meshgen_queue_size));
+            });
+
             ui.collapsing_opened("Rendering", |ui| {
                 ui.add(Slider::new(&mut self.render_distance, 1..=32).text("Render distance"));
                 ui.label(format!(
@@ -109,9 +129,7 @@ impl DebugOverlay {
                     stats.currently_rendered_chunk_radius
                 ));
                 ui.label(format!("V: {}  T: {}", stats.num_vertices, stats.num_triangles));
-                ui.label(format!("Chunks: {}", stats.num_chunks));
                 ui.checkbox(&mut self.render_empty_chunks, "render empty chunks");
-                ui.label(format!("Chunk gen queue size: {}", stats.current_datagen_queue_size));
             });
 
             ui.collapsing("Timing", |ui| {
@@ -124,49 +142,43 @@ impl DebugOverlay {
                 timer.clear();
             });
         });
-        OverlayRenderer {
-            output: Some(self.context.end_frame()),
-            parent: self,
-        }
+        self.output = Some(self.context.end_frame());
     }
 }
 
-pub struct OverlayRenderer<'a> {
-    output: Option<egui::FullOutput>,
-    parent: &'a mut DebugOverlay,
-}
-
-impl Renderer2D for OverlayRenderer<'_> {
+impl Renderer2D for DebugOverlay {
     fn prepare(&mut self, command_encoder: &mut CommandEncoder) {
-        let full_output = std::mem::take(&mut self.output).expect("Failed to get output of egui preparation result");
+        let full_output = mem::take(&mut self.output).expect("Failed to get output of egui preparation result");
 
-        let paint_jobs = self.parent.context.tessellate(full_output.shapes);
+        let paint_jobs = self
+            .context
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
         let tdelta = full_output.textures_delta;
 
-        let render_ctx = self.parent.render_ctx.borrow();
         for (t_id, tdelta) in tdelta.set {
-            self.parent
-                .renderer
-                .update_texture(&render_ctx.device, &render_ctx.queue, t_id, &tdelta);
+            self.renderer
+                .update_texture(&self.render_ctx.device, &self.render_ctx.queue, t_id, &tdelta);
         }
 
-        self.parent.renderer.update_buffers(
-            &render_ctx.device,
-            &render_ctx.queue,
+        self.renderer.update_buffers(
+            &self.render_ctx.device,
+            &self.render_ctx.queue,
             command_encoder,
             &paint_jobs,
-            &self.parent.screen_descriptor,
+            &self.screen_descriptor,
         );
 
-        self.parent.paint_jobs = Some(paint_jobs);
+        self.paint_jobs = Some(paint_jobs);
     }
 
-    fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>) {
-        let paint_jobs = mem::take(&mut self.parent.paint_jobs).expect("no paint jobs were prepared");
+    fn render<'a: 'b + 'c, 'b, 'c>(&'a mut self, render_pass: &'b mut RenderPass<'c>) {
+        let paint_jobs = self
+            .paint_jobs
+            .as_ref()
+            .expect("no paint jobs were prepared");
 
-        self.parent
-            .renderer
-            .render(render_pass, &paint_jobs, &self.parent.screen_descriptor);
+        self.renderer
+            .render(render_pass, paint_jobs, &self.screen_descriptor);
     }
 }
 
@@ -181,7 +193,9 @@ pub struct PerFrameStats {
     pub total_voxel_data_size: usize,
     pub total_mesh_data_size: usize,
     pub currently_rendered_chunk_radius: i32,
-    pub current_datagen_queue_size: usize,
+    pub current_meshgen_queue_size: usize,
+    pub current_chunkgen_queue_size: usize,
+    pub current_chunkdata_buffer_size: usize,
 }
 
 trait CollapsingOpened {

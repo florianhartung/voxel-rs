@@ -1,9 +1,9 @@
 use std::fmt::{Debug, Formatter};
 
-use crate::engine::world::chunk_data::ChunkData::{UniformType, Voxels};
-use crate::engine::world::location::{LocalChunkLocation, OutsideBounds, WithinBounds};
-use crate::engine::world::voxel_data::{VoxelData, VoxelType};
-use crate::engine::world::CHUNK_SIZE;
+use crate::world::location::{LocalChunkLocation, OutsideBounds, WithinBounds};
+use crate::world::voxel_data::{VoxelData, VoxelType};
+use crate::world::CHUNK_SIZE;
+
 #[derive(Clone)]
 pub enum ChunkData {
     Voxels(Box<[VoxelData; CHUNK_SIZE.pow(3)]>),
@@ -24,7 +24,7 @@ impl Debug for ChunkData {
 
 impl ChunkData {
     pub fn new_filled_with_uniform_data(voxel_data: VoxelData) -> Self {
-        Voxels(
+        Self::Voxels(
             vec![voxel_data; CHUNK_SIZE.pow(3)]
                 .into_boxed_slice()
                 .try_into()
@@ -33,11 +33,15 @@ impl ChunkData {
     }
 
     pub const fn new_with_uniform_data(voxel_data: VoxelData) -> Self {
-        UniformType(voxel_data)
+        Self::UniformType(voxel_data)
+    }
+
+    pub fn from_array(data: [VoxelData; CHUNK_SIZE.pow(3)]) -> Self {
+        Self::Voxels(Box::new(data))
     }
 
     pub fn try_convert_into_uniform(&mut self) {
-        if matches!(self, UniformType(_)) {
+        if matches!(self, Self::UniformType(_)) {
             return;
         }
 
@@ -59,15 +63,15 @@ impl ChunkData {
 
     pub fn get_voxel(&self, local_chunk_location: LocalChunkLocation<WithinBounds>) -> &VoxelData {
         match self {
-            Voxels(data) => &data[Self::position_to_index(local_chunk_location)],
-            UniformType(voxel_data) => voxel_data,
+            Self::Voxels(data) => &data[Self::position_to_index(local_chunk_location)],
+            Self::UniformType(voxel_data) => voxel_data,
         }
     }
 
     pub fn set_voxel_data(&mut self, local_chunk_location: LocalChunkLocation<WithinBounds>, new_voxel_data: VoxelData) {
         match self {
-            Voxels(data) => data[Self::position_to_index(local_chunk_location)] = new_voxel_data,
-            UniformType(uniform_data) => {
+            Self::Voxels(data) => data[Self::position_to_index(local_chunk_location)] = new_voxel_data,
+            Self::UniformType(uniform_data) => {
                 if *uniform_data == new_voxel_data {
                     return;
                 }
@@ -75,8 +79,8 @@ impl ChunkData {
                 *self = Self::new_filled_with_uniform_data(*uniform_data);
 
                 match self {
-                    Voxels(data) => data[Self::position_to_index(local_chunk_location)] = new_voxel_data,
-                    UniformType(_) => unreachable!(),
+                    Self::Voxels(data) => data[Self::position_to_index(local_chunk_location)] = new_voxel_data,
+                    Self::UniformType(_) => unreachable!(),
                 }
             }
         }
@@ -86,7 +90,7 @@ impl ChunkData {
         Some(self.get_voxel(local_chunk_location.try_into_checked()?))
     }
 
-    fn position_to_index(local_chunk_location: LocalChunkLocation<WithinBounds>) -> usize {
+    pub fn position_to_index(local_chunk_location: LocalChunkLocation<WithinBounds>) -> usize {
         local_chunk_location.z as usize * CHUNK_SIZE.pow(2) + local_chunk_location.y as usize * CHUNK_SIZE + local_chunk_location.x as usize
     }
 }

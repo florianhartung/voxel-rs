@@ -1,6 +1,7 @@
-use itertools::Itertools;
 use std::collections::HashMap;
 use std::time::Instant;
+
+use itertools::Itertools;
 
 pub struct TimerManager {
     pub current_timers: HashMap<String, Instant>,

@@ -1,9 +1,7 @@
 use clap::Parser;
 use log::{info, LevelFilter};
 
-use crate::engine::EngineConfig;
-
-mod engine;
+use voxel::EngineConfig;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -22,8 +20,9 @@ struct Args {
     fullscreen: bool,
 }
 
-fn main() {
+fn main() -> ! {
     env_logger::Builder::new()
+        .filter_level(LevelFilter::Info)
         .filter_module("wgpu_hal::vulkan::instance", LevelFilter::Off) // suppress invalid vulkan validation layer error (see https://github.com/gfx-rs/wgpu/pull/4002)
         .filter_module("wgpu_hal", LevelFilter::Warn)
         .init();
@@ -40,5 +39,5 @@ fn main() {
         fullscreen: args.fullscreen,
     };
 
-    engine::start(engine_config)
+    voxel::start(engine_config);
 }

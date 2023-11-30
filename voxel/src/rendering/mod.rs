@@ -1,11 +1,13 @@
 use std::mem::ManuallyDrop;
+use std::ops::Deref;
+use std::sync::Mutex;
 
-use wgpu::{PresentMode, TextureFormat};
+use wgpu::{PresentMode, StoreOp, TextureFormat};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::engine::rendering::camera::Camera;
-use crate::engine::rendering::texture::Texture;
+use crate::rendering::camera::Camera;
+use crate::rendering::texture::Texture;
 
 pub mod camera;
 pub mod texture;
@@ -27,8 +29,8 @@ pub struct RenderCtx {
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub surface_config: wgpu::SurfaceConfiguration,
-    depth_texture: Texture,
+    pub surface_config: Mutex<wgpu::SurfaceConfiguration>,
+    depth_texture: Mutex<Texture>,
 }
 
 impl RenderCtx {
@@ -96,19 +98,26 @@ impl RenderCtx {
             surface,
             device,
             queue,
-            surface_config,
-            depth_texture,
+            surface_config: Mutex::new(surface_config),
+            depth_texture: Mutex::new(depth_texture),
         }
     }
 
-    pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
+    pub fn resize(&self, new_size: &PhysicalSize<u32>) {
         assert!(new_size.width > 0 && new_size.height > 0, "Window size must be greater than zero");
 
-        (self.surface_config.width, self.surface_config.height) = (new_size.width, new_size.height);
-        self.surface
-            .configure(&self.device, &self.surface_config);
+        let mut surface_config = self.surface_config.try_lock().expect("aa");
+        surface_config.width = new_size.width;
+        surface_config.height = new_size.height;
 
-        self.depth_texture = Texture::new_depth_texture(&self.device, &self.surface_config);
+        self.surface
+            .configure(&self.device, &*surface_config);
+
+        let mut depth_texture = self
+            .depth_texture
+            .try_lock()
+            .expect("The depth texture is only locked by this function and while rendering");
+        *depth_texture = Texture::new_depth_texture(&self.device, &*surface_config);
     }
 
     pub fn start_rendering(&self) -> RenderHandle {
@@ -150,6 +159,12 @@ impl RenderHandle<'_> {
             (wgpu::LoadOp::Load, wgpu::LoadOp::Load)
         };
 
+        let depth_texture = &self
+            .render_ctx
+            .depth_texture
+            .try_lock()
+            .expect("Mutex to be unlocked");
+
         let mut render_pass = self
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -158,15 +173,15 @@ impl RenderHandle<'_> {
                     view: &self.target_texture_view,
                     ops: wgpu::Operations {
                         load: load_op,
-                        store: true,
+                        store: StoreOp::Store,
                     },
                     resolve_target: None,
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.render_ctx.depth_texture.view,
+                    view: &depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: depth_load_op,
-                        store: true,
+                        store: StoreOp::Store,
                     }),
                     stencil_ops: None,
                 }),
@@ -195,6 +210,12 @@ impl RenderHandle<'_> {
             (wgpu::LoadOp::Load, wgpu::LoadOp::Load)
         };
 
+        let depth_texture = &self
+            .render_ctx
+            .depth_texture
+            .try_lock()
+            .expect("Mutex to be unlocked");
+
         let mut render_pass = self
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -203,15 +224,15 @@ impl RenderHandle<'_> {
                     view: &self.target_texture_view,
                     ops: wgpu::Operations {
                         load: load_op,
-                        store: true,
+                        store: StoreOp::Store,
                     },
                     resolve_target: None,
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.render_ctx.depth_texture.view,
+                    view: &depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: depth_load_op,
-                        store: true,
+                        store: StoreOp::Store,
                     }),
                     stencil_ops: None,
                 }),
@@ -221,6 +242,7 @@ impl RenderHandle<'_> {
         self.clear_before_next_render = false;
 
         renderer.render(&mut render_pass);
+        drop(render_pass)
     }
 
     pub fn finish_rendering(self) {} // Here self is dropped
@@ -244,5 +266,6 @@ pub trait Renderer {
 
 pub trait Renderer2D {
     fn prepare(&mut self, _: &mut wgpu::CommandEncoder);
-    fn render<'a>(&'a mut self, _: &mut wgpu::RenderPass<'a>);
+
+    fn render<'a: 'b + 'c, 'b, 'c>(&'a mut self, render_pass: &'b mut wgpu::RenderPass<'c>);
 }

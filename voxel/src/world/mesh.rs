@@ -1,14 +1,13 @@
-use std::cell::RefCell;
 use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
+use std::ops::Deref;
 
 use bytemuck::{Pod, Zeroable};
 use cgmath::Vector3;
 use wgpu::util::DeviceExt;
 use wgpu::{include_wgsl, vertex_attr_array};
 
-use crate::engine::rendering::texture::Texture;
-use crate::engine::rendering::{RenderCtx, Renderer};
+use crate::rendering::texture::Texture;
+use crate::rendering::{RenderCtx, Renderer};
 
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
@@ -24,7 +23,7 @@ impl Debug for Mesh {
 
 impl Mesh {
     pub fn new(
-        render_ctx: Rc<RefCell<RenderCtx>>,
+        render_ctx: impl Deref<Target = RenderCtx>,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
@@ -83,8 +82,6 @@ impl Vertex {
 
 #[derive(Debug)]
 pub struct MeshRenderer {
-    render_ctx: Rc<RefCell<RenderCtx>>,
-
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
@@ -93,13 +90,11 @@ pub struct MeshRenderer {
 
 impl MeshRenderer {
     pub fn new(
-        render_ctx: Rc<RefCell<RenderCtx>>,
+        ctx: impl Deref<Target = RenderCtx>,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         vertices: &Vec<Vertex>,
         indices: &Vec<u32>,
     ) -> Self {
-        let ctx = render_ctx.borrow();
-
         let vertex_buffer = ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -141,7 +136,11 @@ impl MeshRenderer {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: ctx.surface_config.format,
+                        format: ctx
+                            .surface_config
+                            .try_lock()
+                            .expect("i also hope this isn't locked")
+                            .format,
                         blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -173,7 +172,6 @@ impl MeshRenderer {
         drop(ctx);
 
         Self {
-            render_ctx,
             vertex_buffer,
             index_buffer,
             num_indices: indices.len() as u32,

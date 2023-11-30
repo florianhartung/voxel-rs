@@ -1,23 +1,26 @@
-use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::ops::{Neg, Range};
-use std::rc::Rc;
+use std::ops::{Deref, Neg, Range};
 
+use anyhow::Context;
+use anyhow::Result;
 use cgmath::prelude::*;
 use cgmath::Vector3;
+use enum_map::EnumMap;
 use fastrand::Rng;
+use itertools::iproduct;
+use lazy_static::lazy_static;
 use strum::IntoEnumIterator;
 
-use crate::engine::rendering::RenderCtx;
-use crate::engine::vector_utils::{AbsValue, RemEuclid};
-use crate::engine::world::chunk_data::ChunkData;
-use crate::engine::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
-use crate::engine::world::mesh::{Mesh, Vertex};
-use crate::engine::world::meshing::direction::Direction;
-use crate::engine::world::meshing::quad::{FaceData, Quad};
-use crate::engine::world::voxel_data::VoxelType;
-use crate::engine::world::CHUNK_SIZE;
+use crate::rendering::RenderCtx;
+use crate::vector_utils::{AbsValue, RemEuclid};
+use crate::world::chunk_data::ChunkData;
+use crate::world::location::{ChunkLocation, LocalChunkLocation, WithinBounds, WorldLocation};
+use crate::world::mesh::{Mesh, Vertex};
+use crate::world::meshing::direction::Direction;
+use crate::world::meshing::quad::{FaceData, Quad};
+use crate::world::voxel_data::VoxelType;
+use crate::world::CHUNK_SIZE;
 
 pub mod direction;
 pub mod quad;
@@ -30,7 +33,7 @@ impl ChunkMeshGenerator {
     pub fn generate_mesh_from_quads(
         chunk_location: ChunkLocation,
         quads: Vec<Quad>,
-        render_ctx: Rc<RefCell<RenderCtx>>,
+        render_ctx: impl Deref<Target = RenderCtx>,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Mesh {
         let mut vertices: Vec<Vertex> = Vec::new();
@@ -96,28 +99,8 @@ impl ChunkMeshGenerator {
 
         Mesh::new(render_ctx, camera_bind_group_layout, vertices, indices)
     }
-    pub fn generate_mesh(
-        render_ctx: Rc<RefCell<RenderCtx>>,
-        camera_bind_group_layout: &wgpu::BindGroupLayout,
-        location: ChunkLocation,
-        chunks: &hashbrown::HashMap<ChunkLocation, ChunkData>,
-    ) -> Mesh {
-        let quads = Self::generate_culled_mesh(
-            location,
-            &chunks
-                .get(&location)
-                .expect("Can't generate a mesh for a chunk that does not exist"),
-            chunks,
-        );
 
-        Self::generate_mesh_from_quads(location, quads, render_ctx, camera_bind_group_layout)
-    }
-
-    pub fn generate_culled_mesh(
-        current_location: ChunkLocation,
-        data: &ChunkData,
-        all_chunks: &hashbrown::HashMap<ChunkLocation, ChunkData>,
-    ) -> Vec<Quad> {
+    pub fn generate_culled_mesh(current_location: ChunkLocation, data: &ChunkData, neighbor_chunks: NeighborChunks) -> Vec<Quad> {
         let mut quads = Vec::new();
 
         LocalChunkLocation::iter()
@@ -133,39 +116,37 @@ impl ChunkMeshGenerator {
                         if let Some(within_current_chunk) = local_location.try_into_checked() {
                             data.get_voxel(within_current_chunk)
                         } else {
-                            let mut chunk_loc = current_location;
+                            let mut relative_chunk_loc = ChunkLocation::new(Vector3::<i32>::zero());
+
                             if local_location.x < 0 {
                                 local_location.x += CHUNK_SIZE as i32;
-                                chunk_loc.x -= 1;
+                                relative_chunk_loc.x -= 1;
                             } else if local_location.x >= CHUNK_SIZE as i32 {
                                 local_location.x -= CHUNK_SIZE as i32;
-                                chunk_loc.x += 1;
+                                relative_chunk_loc.x += 1;
                             }
 
                             if local_location.y < 0 {
                                 local_location.y += CHUNK_SIZE as i32;
-                                chunk_loc.y -= 1;
+                                relative_chunk_loc.y -= 1;
                             } else if local_location.y >= CHUNK_SIZE as i32 {
                                 local_location.y -= CHUNK_SIZE as i32;
-                                chunk_loc.y += 1;
+                                relative_chunk_loc.y += 1;
                             }
 
                             if local_location.z < 0 {
                                 local_location.z += CHUNK_SIZE as i32;
-                                chunk_loc.z -= 1;
+                                relative_chunk_loc.z -= 1;
                             } else if local_location.z >= CHUNK_SIZE as i32 {
                                 local_location.z -= CHUNK_SIZE as i32;
-                                chunk_loc.z += 1;
+                                relative_chunk_loc.z += 1;
                             }
 
-                            all_chunks
-                                .get(&chunk_loc)
-                                .expect("Chunk not generated yet")
-                                .get_voxel(
-                                    local_location
-                                        .try_into_checked()
-                                        .expect("This should be a valid local location because the voxel offset is max 1"),
-                                )
+                            neighbor_chunks.get(relative_chunk_loc).get_voxel(
+                                local_location
+                                    .try_into_checked()
+                                    .expect("This should be a valid local location because the voxel offset is max 1"),
+                            )
                         }
                     };
 
@@ -192,10 +173,7 @@ impl ChunkMeshGenerator {
                     let quad = Quad::new(
                         pos,
                         dir,
-                        FaceData::new(voxel_type_to_color(
-                            data.get_voxel(pos).ty,
-                            WorldLocation::new(current_location, pos.into_unknown()),
-                        )),
+                        FaceData::new(voxel_type_to_color_lookup(data.get_voxel(pos).ty, &pos)),
                         [ao_1, ao_2, ao_3, ao_4],
                         reverse_quad_orientation,
                     );
@@ -204,7 +182,9 @@ impl ChunkMeshGenerator {
                         if data.get_voxel(same_chunk_neighbor).ty == VoxelType::Air {
                             quads.push(quad);
                         }
-                    } else if let Some(chunk) = all_chunks.get(&ChunkLocation::new(*current_location + dir.to_vec())) {
+                    } else {
+                        let chunk = neighbor_chunks.get(ChunkLocation::new(dir.to_vec()));
+
                         let neighbor_local = LocalChunkLocation::new(neighbor_voxel_location.rem_euclid(CHUNK_SIZE as i32))
                             .try_into_checked()
                             .expect("aa");
@@ -212,14 +192,89 @@ impl ChunkMeshGenerator {
                         if chunk.get_voxel(neighbor_local).ty == VoxelType::Air {
                             quads.push(quad);
                         }
-                    } else {
-                        eprintln!("Neighbor chunk's data is not generated yet.")
                     }
                 }
             });
 
         quads
     }
+}
+
+pub struct NeighborChunks<'a> {
+    pub chunk_data: [&'a ChunkData; 27],
+}
+
+impl<'a> NeighborChunks<'a> {
+    pub fn new<'b: 'a, F: Fn(&ChunkLocation) -> Option<&'b ChunkData> + 'b>(around: &ChunkLocation, get_chunk: F) -> Result<Self> {
+        let mut v: [Option<&'b ChunkData>; 27] = [None; 27];
+
+        iproduct!(-1i32..=1, -1..=1, -1..=1).for_each(|(dx, dy, dz)| {
+            let current_location: ChunkLocation = *around + ChunkLocation::new(Vector3::<i32>::new(dx, dy, dz));
+
+            let idx = (dx + 1) * 9 + (dy + 1) * 3 + (dz + 1);
+            let Some(x) = get_chunk(&current_location) else {
+                panic!(
+                    "Failed to get chunk at {:?} which is relative by {:?} to the center chunk {:?}",
+                    current_location,
+                    Vector3::new(dx, dy, dz),
+                    around
+                );
+            };
+            v[idx as usize] = Some(x);
+        });
+
+        let chunk_data: Vec<&ChunkData> = v
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .expect("all neighbor chunks to be initialized");
+
+        let chunk_data: [&ChunkData; 27] = chunk_data
+            .try_into()
+            .expect("number to elements to be exactly 27");
+
+        Ok(Self { chunk_data })
+    }
+
+    pub fn get(&self, pos: ChunkLocation) -> &ChunkData {
+        assert!(pos.x != 0 || pos.y != 0 || pos.z != 0);
+
+        let idx = (pos.x + 1) * 9 + (pos.y + 1) * 3 + (pos.z + 1);
+        return self.chunk_data[idx as usize];
+    }
+}
+
+lazy_static! {
+    static ref VOXEL_TYPE_RAND_MAP: EnumMap<VoxelType, Vec<Vector3<f32>>> = enum_map::enum_map! {
+        VoxelType::Air => generate_voxel_type_map(VoxelType::Air),
+        VoxelType::Dirt => generate_voxel_type_map(VoxelType::Dirt),
+        VoxelType::Grass => generate_voxel_type_map(VoxelType::Grass),
+        VoxelType::Stone => generate_voxel_type_map(VoxelType::Stone),
+    };
+}
+
+fn generate_voxel_type_map(voxel_type: VoxelType) -> Vec<Vector3<f32>> {
+    iproduct!(0..(CHUNK_SIZE as i32), 0..(CHUNK_SIZE as i32), 0..(CHUNK_SIZE as i32))
+        .map(|(x, y, z)| {
+            voxel_type_to_color(
+                voxel_type,
+                WorldLocation::new(
+                    ChunkLocation::new(Vector3::new(0, 0, 0)),
+                    LocalChunkLocation::new(Vector3::new(x, y, z)),
+                ),
+            )
+        })
+        .collect()
+}
+
+fn voxel_type_to_color_lookup(ty: VoxelType, local_voxel_position: &LocalChunkLocation<WithinBounds>) -> Vector3<f32> {
+    VOXEL_TYPE_RAND_MAP[ty]
+        .get(
+            local_voxel_position.x as usize * CHUNK_SIZE * CHUNK_SIZE
+                + local_voxel_position.y as usize * CHUNK_SIZE
+                + local_voxel_position.z as usize,
+        )
+        .unwrap()
+        .clone()
 }
 
 fn voxel_type_to_color(ty: VoxelType, voxel_position: WorldLocation) -> Vector3<f32> {

@@ -1,7 +1,7 @@
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::EventLoop;
 
-use crate::engine::{Engine, EngineConfig};
+use crate::{Engine, EngineConfig};
 
 pub fn start(engine_config: EngineConfig) -> ! {
     let event_loop = EventLoop::new();

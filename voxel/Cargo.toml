@@ -1,0 +1,49 @@
+[package]
+name = "voxel"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+winit = "0.28.6"
+wgpu = "0.18.0"
+bytemuck = { version = "1.13.1", features = ["derive"] }
+cgmath = { git = "https://github.com/rustgd/cgmath.git", features = ["bytemuck"] }
+pollster = "0.3.0"
+anyhow = "1.0.70"
+log = "0.4.17"
+env_logger = "0.10.0"
+fastrand = "1.9.0"
+timing = "0.2.3"
+itertools = "0.10.5"
+strum = "0.24.1"
+strum_macros = "0.24.3"
+noise = "0.8.2"
+static_assertions = "1.1.0"
+egui = "0.24.0"
+egui-wgpu = "0.24.0"
+egui-winit = "0.24.0"
+rayon = "1.7.0"
+hashbrown = "0.14.0"
+lazy_static = "1.4.0"
+enum-map = "2.7.3"
+
+[dev-dependencies]
+itertools = "0.10.5"
+criterion = { version = "0.4", features = ["html_reports"] }
+bracket-noise = "0.8.7"
+lazy_static = "1.4.0"
+simdnoise = "3.1.6"
+voxel = "0.1.0"
+
+[[bench]]
+name = "noise_benchmark"
+harness = false
+
+#[patch.crates-io]
+## instead of suppressing the wgpu_hal::vulkan::instance logging module, we could also use the newest version of wgpu and egui (egui also depends on wgpu)
+#wgpu = { git = "https://github.com/gfx-rs/wgpu.git" }
+#egui = { git = "https://github.com/emilk/egui.git" }
+#egui-winit = { git = "https://github.com/emilk/egui.git", package = "egui-winit" }
+#egui-wgpu = { git = "https://github.com/emilk/egui.git", package = "egui-wgpu" }

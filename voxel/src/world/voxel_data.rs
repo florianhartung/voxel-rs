@@ -9,7 +9,7 @@ impl VoxelData {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, enum_map::Enum)]
 pub enum VoxelType {
     Air,
     Dirt,

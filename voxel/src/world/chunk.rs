@@ -1,6 +1,6 @@
-use crate::engine::world::chunk_data::ChunkData;
-use crate::engine::world::location::ChunkLocation;
-use crate::engine::world::mesh::{Mesh, MeshRenderer};
+use crate::world::chunk_data::ChunkData;
+use crate::world::location::ChunkLocation;
+use crate::world::mesh::{Mesh, MeshRenderer};
 
 #[derive(Debug)]
 pub struct Chunk {

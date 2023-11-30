@@ -3,15 +3,14 @@ use std::time::Duration;
 use bytemuck::Zeroable;
 use cgmath::num_traits::FloatConst;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Rad, Vector3, Zero};
-use log::info;
 use wgpu::util::DeviceExt;
 use wgpu::BindingType;
 use winit::event::{ElementState, VirtualKeyCode};
 
-use crate::engine::rendering::RenderCtx;
-use crate::engine::world::chunk_manager::ChunkManager;
-use crate::engine::world::location::WorldLocation;
-use crate::engine::world::voxel_data::VoxelType;
+use crate::rendering::RenderCtx;
+use crate::world::chunk_manager::{Chunk, ChunkManager};
+use crate::world::location::WorldLocation;
+use crate::world::voxel_data::VoxelType;
 
 const CAMERA_EYE_OFFSET: f32 = 100.0;
 const GRAVITY: f32 = 300.0;
@@ -151,6 +150,7 @@ impl Projection {
 
     pub fn build_proj_matrix(&self) -> Matrix4<f32> {
         OPENGL_TO_WGPU_MATRIX * cgmath::perspective(self.fov_y, self.aspect, self.z_near, self.z_far)
+        //OPENGL_TO_WGPU_MATRIX * cgmath::ortho(-50., 50., -50., 50., -1., 1000.)
     }
 }
 
@@ -245,12 +245,19 @@ impl CameraController {
                 let mut is_grounded = chunk_manager
                     .chunks
                     .get(&chunk_location)
-                    .map(|chunk| chunk.get_voxel(local_chunk_location).ty != VoxelType::Air)
+                    .map(|chunk| {
+                        let chunk_data = match chunk {
+                            Chunk::None { .. } => return false,
+                            Chunk::Generated { data, .. } => data,
+                            Chunk::Meshed { data, .. } => data,
+                        };
+
+                        chunk_data.get_voxel(local_chunk_location).ty != VoxelType::Air
+                    })
                     .unwrap_or(false);
 
                 if !is_grounded {
                     camera.velocity.y -= dt.as_secs_f32() * GRAVITY;
-                    dbg!(&camera.velocity);
                 } else {
                     if self.is_jumping {
                         camera.velocity.y += JUMP_ACCELERATION;
@@ -272,10 +279,18 @@ impl CameraController {
                             )
                             .separate();
 
-                            is_grounded = chunk_manager
+                            let mut is_grounded = chunk_manager
                                 .chunks
                                 .get(&chunk_location)
-                                .map(|chunk| chunk.get_voxel(local_chunk_location).ty != VoxelType::Air)
+                                .map(|chunk| {
+                                    let chunk_data = match chunk {
+                                        Chunk::None { .. } => return false,
+                                        Chunk::Generated { data, .. } => data,
+                                        Chunk::Meshed { data, .. } => data,
+                                    };
+
+                                    chunk_data.get_voxel(local_chunk_location).ty != VoxelType::Air
+                                })
                                 .unwrap_or(false);
 
                             if is_grounded {

@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use cgmath::{Deg, EuclideanSpace};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -9,12 +8,12 @@ use winit::window::{Fullscreen, Window, WindowBuilder};
 
 pub use starter::start;
 
-use crate::engine::debug_overlay::{DebugOverlay, PerFrameStats};
-use crate::engine::frame_timer::FrameTimer;
-use crate::engine::rendering::camera::{Camera, CameraController};
-use crate::engine::rendering::RenderCtx;
-use crate::engine::timing::TimerManager;
-use crate::engine::world::chunk_manager::ChunkManager;
+use crate::debug_overlay::{DebugOverlay, PerFrameStats};
+use crate::frame_timer::FrameTimer;
+use crate::rendering::camera::{Camera, CameraController};
+use crate::rendering::RenderCtx;
+use crate::timing::TimerManager;
+use crate::world::chunk_manager::ChunkManager;
 
 #[macro_use]
 mod macros;
@@ -37,7 +36,7 @@ pub struct EngineConfig {
 pub struct Engine {
     window: Window,
     frame_timer: FrameTimer,
-    render_ctx: Rc<RefCell<RenderCtx>>,
+    render_ctx: Arc<RenderCtx>,
 
     chunk_manager: ChunkManager,
 
@@ -59,15 +58,26 @@ impl Engine {
             window.set_fullscreen(Some(Fullscreen::Borderless(None)));
         }
 
-        let render_ctx = Rc::new(RefCell::new(pollster::block_on(RenderCtx::new(&window, engine_config.vsync))));
+        let render_ctx = pollster::block_on(RenderCtx::new(&window, engine_config.vsync));
+
+        let render_ctx = Arc::new(render_ctx);
+
+        let (width, height) = {
+            let surface_config = render_ctx
+                .surface_config
+                .try_lock()
+                .expect("AAAAAA");
+
+            (surface_config.width, surface_config.height)
+        };
 
         let camera = Camera::new(
-            &render_ctx.borrow(),
+            &*render_ctx,
             (-79.21167, 5.4288225, -39.484493),
             Deg(-42.0),
             Deg(-20.0),
-            render_ctx.borrow().surface_config.width,
-            render_ctx.borrow().surface_config.height,
+            width,
+            height,
             Deg(80.0),
             0.1,
             1000.0,
@@ -78,9 +88,9 @@ impl Engine {
 
         let mut chunk_manager = ChunkManager::new(camera.position.to_vec());
         chunk_manager.generate_chunks(&mut timer);
-        chunk_manager.generate_chunk_meshes(&render_ctx, &camera.bind_group_layout, &mut timer);
+        chunk_manager.generate_chunk_meshes(&*render_ctx, &camera.bind_group_layout, &mut timer);
 
-        let imgui_overlay = DebugOverlay::new(render_ctx.clone(), &window);
+        let imgui_overlay = DebugOverlay::new(Arc::clone(&render_ctx), &window);
 
         Self {
             window,
@@ -97,7 +107,7 @@ impl Engine {
 
     fn render(&mut self) {
         self.timer.start("render_all");
-        let render_ctx = self.render_ctx.borrow();
+        let render_ctx = &*self.render_ctx;
 
         let dt = self.frame_timer.get_dt();
 
@@ -123,7 +133,7 @@ impl Engine {
             .generate_chunks(&mut self.timer);
 
         self.chunk_manager
-            .generate_chunk_meshes(&self.render_ctx, &self.camera.bind_group_layout, &mut self.timer);
+            .generate_chunk_meshes(&*render_ctx, &self.camera.bind_group_layout, &mut self.timer);
 
         self.timer.start("chunk_manager_unloading");
         self.chunk_manager.unload_chunks();
@@ -140,12 +150,13 @@ impl Engine {
             total_voxel_data_size: self.chunk_manager.total_voxel_data_size,
             total_mesh_data_size: self.chunk_manager.total_mesh_data_size,
             currently_rendered_chunk_radius: self.chunk_manager.current_chunk_mesh_radius - 1,
-            current_datagen_queue_size: self.chunk_manager.chunk_generate_queue.len(),
+            current_meshgen_queue_size: self.chunk_manager.chunk_mesh_queue.len(),
+            current_chunkgen_queue_size: self.chunk_manager.location_queue.len(),
+            current_chunkdata_buffer_size: self.chunk_manager.generated_chunks_queue.len(),
         };
 
         self.timer.start("imgui_prepare");
-        let mut egui_prep_result = self
-            .egui_interface
+        self.egui_interface
             .prepare_render(&self.window, stats, &mut self.timer);
         self.timer.end("imgui_prepare");
 
@@ -155,7 +166,7 @@ impl Engine {
         self.timer.end("render_3d");
 
         self.timer.start("render_ui");
-        handle.render2d(&mut egui_prep_result);
+        handle.render2d(&mut self.egui_interface);
         self.timer.end("render_ui");
 
         self.timer.start("render_final");
@@ -218,15 +229,13 @@ impl Engine {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(new_size) => {
-                    self.render_ctx.borrow_mut().resize(new_size);
+                    self.render_ctx.resize(new_size);
                     self.camera
                         .resize(new_size.width, new_size.height);
                     true
                 }
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                    self.render_ctx
-                        .borrow_mut()
-                        .resize(new_inner_size);
+                    self.render_ctx.resize(new_inner_size);
                     self.camera
                         .resize(new_inner_size.width, new_inner_size.height);
                     true

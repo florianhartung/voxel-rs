@@ -5,8 +5,8 @@ use std::ops::{Add, Deref, DerefMut, Sub};
 use cgmath::Vector3;
 use itertools::iproduct;
 
-use crate::engine::vector_utils::RemEuclid;
-use crate::engine::world::CHUNK_SIZE;
+use crate::vector_utils::RemEuclid;
+use crate::world::CHUNK_SIZE;
 
 /// An absolute location in the world. It contains a chunk location and a local chunk location encoded into a single Vector3.
 #[derive(Copy, Clone, Debug)]
@@ -208,8 +208,8 @@ impl<T> DerefMut for LocalChunkLocation<T> {
 mod tests {
     use cgmath::Vector3;
 
-    use crate::engine::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
-    use crate::engine::world::CHUNK_SIZE;
+    use crate::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
+    use crate::world::CHUNK_SIZE;
 
     #[test]
     fn test_world_location() {
