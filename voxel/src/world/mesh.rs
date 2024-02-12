@@ -3,8 +3,8 @@ use std::ops::Deref;
 
 use bytemuck::{Pod, Zeroable};
 use cgmath::Vector3;
-use wgpu::util::DeviceExt;
-use wgpu::{include_wgsl, vertex_attr_array};
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::{include_wgsl, vertex_attr_array, ShaderStages};
 
 use crate::rendering::texture::Texture;
 use crate::rendering::{RenderCtx, Renderer};
@@ -27,8 +27,9 @@ impl Mesh {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
+        position: Vector3<f32>,
     ) -> Self {
-        let mesh_render = MeshRenderer::new(render_ctx, camera_bind_group_layout, &vertices, &indices);
+        let mesh_render = MeshRenderer::new(render_ctx, camera_bind_group_layout, &vertices, &indices, position);
 
         Self {
             vertices,
@@ -86,6 +87,11 @@ pub struct MeshRenderer {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     render_pipeline: wgpu::RenderPipeline,
+
+    /// The position offset of this mesh
+    position_buffer: wgpu::Buffer,
+    position_bind_group: wgpu::BindGroup,
+    position_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl MeshRenderer {
@@ -94,6 +100,7 @@ impl MeshRenderer {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         vertices: &Vec<Vertex>,
         indices: &Vec<u32>,
+        position: Vector3<f32>,
     ) -> Self {
         let vertex_buffer = ctx
             .device
@@ -111,6 +118,42 @@ impl MeshRenderer {
                 contents: bytemuck::cast_slice(indices.as_slice()),
             });
 
+        let buffer_data = [position.x, position.y, position.z, 0.0]; // 0.0 as padding for alignment
+        let position_buffer = ctx
+            .device
+            .create_buffer_init(&BufferInitDescriptor {
+                label: Some("Buffer for position offset of mesh"),
+                contents: bytemuck::cast_slice(&buffer_data),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let position_bind_group_layout = ctx
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Bind group layout for position offset of mesh"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    visibility: ShaderStages::VERTEX,
+                    count: None,
+                }],
+            });
+
+        let position_bind_group = ctx
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind group for position offset of mesh"),
+                layout: &position_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: position_buffer.as_entire_binding(),
+                }],
+            });
+
         let shader = ctx
             .device
             .create_shader_module(include_wgsl!("shader.wgsl"));
@@ -120,7 +163,7 @@ impl MeshRenderer {
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Mesh render pipeline layout"),
                 push_constant_ranges: &[],
-                bind_group_layouts: &[camera_bind_group_layout],
+                bind_group_layouts: &[camera_bind_group_layout, &position_bind_group_layout],
             });
 
         let render_pipeline = ctx
@@ -176,6 +219,9 @@ impl MeshRenderer {
             index_buffer,
             num_indices: indices.len() as u32,
             render_pipeline,
+            position_buffer,
+            position_bind_group_layout,
+            position_bind_group,
         }
     }
 
@@ -192,6 +238,7 @@ impl Renderer for MeshRenderer {
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
         render_pass.set_bind_group(0, camera_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.position_bind_group, &[]);
 
         render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
     }

@@ -7,7 +7,11 @@ pub struct Chunk {
     pub location: ChunkLocation,
     pub data: ChunkData,
     pub mesh: ChunkMesh,
-    pub is_empty: bool,
+
+    /// Uniform resources for chunk position uniform
+    position_buffer: wgpu::Buffer,
+    pub position_bind_group_layout: wgpu::BindGroupLayout,
+    pub position_bind_group: wgpu::BindGroup,
 }
 
 #[derive(Debug)]

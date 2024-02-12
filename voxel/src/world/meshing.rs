@@ -42,7 +42,7 @@ impl ChunkMeshGenerator {
         quads.iter().for_each(|quad| {
             let base_index = vertices.len() as u32;
 
-            let mut pos = quad.position.to_f32() + chunk_location.to_world_location_f32();
+            let mut pos = quad.position.to_f32();
             let direction = quad
                 .direction
                 .to_vec()
@@ -97,7 +97,13 @@ impl ChunkMeshGenerator {
             .for_each(|i| indices.push(base_index + i));
         });
 
-        Mesh::new(render_ctx, camera_bind_group_layout, vertices, indices)
+        Mesh::new(
+            render_ctx,
+            camera_bind_group_layout,
+            vertices,
+            indices,
+            chunk_location.to_world_location_f32(),
+        )
     }
 
     pub fn generate_culled_mesh(current_location: ChunkLocation, data: &ChunkData, neighbor_chunks: NeighborChunks) -> Vec<Quad> {
