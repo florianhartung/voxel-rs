@@ -157,16 +157,21 @@ impl Engine {
 
         self.timer.start("imgui_prepare");
         self.egui_interface
-            .prepare_render(&self.window, stats, &mut self.timer);
+            .build_ui(&self.window, stats, &mut self.timer);
         self.timer.end("imgui_prepare");
 
         let mut handle = render_ctx.start_rendering();
+
+        // Use command encoder to prepare egui
+        self.egui_interface
+            .prepare_render(handle.get_command_encoder());
+
         self.timer.start("render_3d");
         handle.render(&self.chunk_manager, &self.camera);
         self.timer.end("render_3d");
 
         self.timer.start("render_ui");
-        handle.render2d(&mut self.egui_interface);
+        handle.render(&mut self.egui_interface, &self.camera);
         self.timer.end("render_ui");
 
         self.timer.start("render_final");

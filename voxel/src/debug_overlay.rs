@@ -4,14 +4,14 @@ use std::mem;
 use std::sync::Arc;
 
 use cgmath::Vector3;
-use egui::{ClippedPrimitive, CollapsingHeader, CollapsingResponse, Color32, Context, Slider, Ui, Visuals, WidgetText};
+use egui::{ClippedPrimitive, CollapsingHeader, CollapsingResponse, Color32, Context, RichText, Slider, Ui, Visuals, WidgetText};
 use egui_wgpu::renderer::ScreenDescriptor;
 use wgpu::TextureFormat::Depth32Float;
-use wgpu::{CommandEncoder, RenderPass};
+use wgpu::{BindGroup, CommandEncoder, RenderPass};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-use crate::rendering::{RenderCtx, Renderer2D};
+use crate::rendering::{RenderCtx, Renderer};
 use crate::timing::TimerManager;
 
 pub struct DebugOverlay {
@@ -81,7 +81,7 @@ impl DebugOverlay {
         result.consumed
     }
 
-    pub fn prepare_render(&mut self, window: &Window, stats: PerFrameStats, timer: &mut TimerManager) {
+    pub fn build_ui(&mut self, window: &Window, stats: PerFrameStats, timer: &mut TimerManager) {
         if self.last_fps_counts.len() == self.last_fps_counts.capacity() {
             self.last_fps_counts.pop_front();
         }
@@ -144,10 +144,10 @@ impl DebugOverlay {
         });
         self.output = Some(self.context.end_frame());
     }
-}
 
-impl Renderer2D for DebugOverlay {
-    fn prepare(&mut self, command_encoder: &mut CommandEncoder) {
+    /// Must be called before rendering this overlay.
+    /// This will tessellate the ui and upload all resources to the gpu
+    pub fn prepare_render(&mut self, command_encoder: &mut CommandEncoder) {
         let full_output = mem::take(&mut self.output).expect("Failed to get output of egui preparation result");
 
         let paint_jobs = self
@@ -170,8 +170,10 @@ impl Renderer2D for DebugOverlay {
 
         self.paint_jobs = Some(paint_jobs);
     }
+}
 
-    fn render<'a: 'b + 'c, 'b, 'c>(&'a mut self, render_pass: &'b mut RenderPass<'c>) {
+impl Renderer for DebugOverlay {
+    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, _camera_bind_group: &'a BindGroup) {
         let paint_jobs = self
             .paint_jobs
             .as_ref()
@@ -181,6 +183,7 @@ impl Renderer2D for DebugOverlay {
             .render(render_pass, paint_jobs, &self.screen_descriptor);
     }
 }
+
 
 #[derive(Debug, Clone)]
 pub struct PerFrameStats {

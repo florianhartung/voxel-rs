@@ -1,5 +1,5 @@
 use std::mem::ManuallyDrop;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::sync::Mutex;
 
 use wgpu::{PresentMode, StoreOp, TextureFormat};
@@ -193,56 +193,8 @@ impl RenderHandle<'_> {
         renderer.render(&mut render_pass, &camera.bind_group);
     }
 
-    pub fn render2d<T: Renderer2D>(&mut self, renderer: &mut T) {
-        renderer.prepare(&mut self.encoder);
-
-        let (load_op, depth_load_op) = if self.clear_before_next_render {
-            (
-                wgpu::LoadOp::Clear(wgpu::Color {
-                    r: 0.4941,
-                    g: 0.6627,
-                    b: 1.0,
-                    a: 1.0,
-                }),
-                wgpu::LoadOp::Clear(1.0),
-            )
-        } else {
-            (wgpu::LoadOp::Load, wgpu::LoadOp::Load)
-        };
-
-        let depth_texture = &self
-            .render_ctx
-            .depth_texture
-            .try_lock()
-            .expect("Mutex to be unlocked");
-
-        let mut render_pass = self
-            .encoder
-            .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.target_texture_view,
-                    ops: wgpu::Operations {
-                        load: load_op,
-                        store: StoreOp::Store,
-                    },
-                    resolve_target: None,
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: depth_load_op,
-                        store: StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-        self.clear_before_next_render = false;
-
-        renderer.render(&mut render_pass);
-        drop(render_pass)
+    pub fn get_command_encoder(&mut self) -> &mut wgpu::CommandEncoder {
+        self.encoder.deref_mut()
     }
 
     pub fn finish_rendering(self) {} // Here self is dropped
@@ -262,10 +214,4 @@ impl Drop for RenderHandle<'_> {
 
 pub trait Renderer {
     fn render<'a>(&'a self, _: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup);
-}
-
-pub trait Renderer2D {
-    fn prepare(&mut self, _: &mut wgpu::CommandEncoder);
-
-    fn render<'a: 'b + 'c, 'b, 'c>(&'a mut self, render_pass: &'b mut wgpu::RenderPass<'c>);
 }
