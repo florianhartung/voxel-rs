@@ -422,7 +422,7 @@ impl ChunkManager {
             let generated_meshes = {
                 timer.start("chunk_manager_meshing_generate_meshes");
                 self.chunk_mesh_queue
-                    .drain(0..(16.min(self.chunk_mesh_queue.len())))
+                    .drain(0..(8.min(self.chunk_mesh_queue.len())))
                     .filter(|location| {
                         let stored_chunk = self.chunks.get(location);
                         // TODO fix this check. currently an empty chunk will be 'queued' forever, even though it is not in the queue anymore
