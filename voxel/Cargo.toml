@@ -28,6 +28,7 @@ rayon = "1.7.0"
 hashbrown = "0.14.0"
 lazy_static = "1.4.0"
 enum-map = "2.7.3"
+ahash = "0.8.11"
 
 [dev-dependencies]
 itertools = "0.10.5"
