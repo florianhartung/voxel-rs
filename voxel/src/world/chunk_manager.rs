@@ -13,10 +13,10 @@ use wgpu::{BindGroup, RenderPass};
 use crate::rendering::{RenderCtx, Renderer};
 use crate::timing::TimerManager;
 use crate::world::awesome_queue::AwesomeQueue;
-use crate::world::chunk::ChunkMesh;
 use crate::world::chunk_data::ChunkData;
+use crate::world::chunk_renderer::ChunkRenderManager;
 use crate::world::location::ChunkLocation;
-use crate::world::meshing::{ChunkMeshGenerator, NeighborChunks};
+use crate::world::meshing::NeighborChunks;
 use crate::world::voxel_data::{VoxelData, VoxelType};
 use crate::world::worldgen::WorldGenerator;
 use crate::world::CHUNK_SIZE;
@@ -34,7 +34,6 @@ pub enum Chunk {
     },
     Meshed {
         data: ChunkData,
-        mesh: ChunkMesh,
     },
 }
 
@@ -145,7 +144,7 @@ impl Chunk {
         Ok(())
     }
 
-    pub fn attach_mesh(&mut self, mesh: ChunkMesh) -> Result<()> {
+    pub fn attach_mesh(&mut self) -> Result<()> {
         let Chunk::Generated { data, .. } = self else {
             bail!(
                 "Cannot attach data to a chunk that is not of the StoredChunk::None type. self={:?}",
@@ -158,10 +157,7 @@ impl Chunk {
         const TEMP_EMPTY_DATA: ChunkData = ChunkData::UniformType(VoxelData::new(VoxelType::Air));
         let previous_chunk_data = mem::replace(data, TEMP_EMPTY_DATA.clone());
 
-        *self = Chunk::Meshed {
-            data: previous_chunk_data,
-            mesh,
-        };
+        *self = Chunk::Meshed { data: previous_chunk_data };
 
         Ok(())
     }
@@ -187,6 +183,7 @@ pub struct ChunkManager {
     pub generated_chunks_queue: Arc<AwesomeQueue<ChunkGenResult>>,
     // pub mesh_gen_queue: Arc<AwesomeQueue<(ChunkLocation)>>,
     // pub generated_meshes_queue: Arc<AwesomeQueue<ChunkGenResult>>,
+    chunk_render_manager: ChunkRenderManager,
 }
 
 struct MeshGenQuery {
@@ -252,6 +249,7 @@ impl ChunkManager {
             render_empty_chunks: true,
             location_queue,
             generated_chunks_queue,
+            chunk_render_manager: ChunkRenderManager::new(),
         }
     }
 
@@ -419,25 +417,29 @@ impl ChunkManager {
         timer.start("chunk_manager_meshing");
 
         while start.elapsed() < MAX_TIME && self.chunk_mesh_queue.len() > 0 {
-            let generated_meshes = {
-                timer.start("chunk_manager_meshing_generate_meshes");
-                self.chunk_mesh_queue
-                    .drain(0..(8.min(self.chunk_mesh_queue.len())))
-                    .filter(|location| {
-                        let stored_chunk = self.chunks.get(location);
-                        // TODO fix this check. currently an empty chunk will be 'queued' forever, even though it is not in the queue anymore
-                        !matches!(
-                            stored_chunk,
-                            Some(Chunk::Generated {
-                                data: ChunkData::UniformType(VoxelData { ty: VoxelType::Air }),
-                                ..
-                            })
-                        )
-                    })
-                    .map(|location| {
+            let locs_to_be_meshed = self
+                .chunk_mesh_queue
+                .drain(0..(8.min(self.chunk_mesh_queue.len())))
+                .collect_vec();
+
+            locs_to_be_meshed
+                .into_iter()
+                // .filter(|location| {
+                //     let stored_chunk = self.chunks.get(location);
+                //     // TODO fix this check. currently an empty chunk will be 'queued' forever, even though it is not in the queue anymore
+                //     !matches!(
+                //         stored_chunk,
+                //         Some(Chunk::Generated {
+                //             data: ChunkData::UniformType(VoxelData { ty: VoxelType::Air }),
+                //             ..
+                //         })
+                //     )
+                // })
+                .for_each(|location| {
+                    let data = {
                         let stored_chunk = self
                             .chunks
-                            .get(&location)
+                            .get_mut(&location)
                             .expect("Tried to generate mesh for chunk without data");
 
                         let Chunk::Generated {
@@ -449,45 +451,27 @@ impl ChunkManager {
                             panic!("Found invalid chunk while trying to generate mesh");
                         };
 
-                        let neighbor_chunks = NeighborChunks::new(&location, |loc| {
-                            self.chunks
-                                .get(loc)
-                                .map(Chunk::get_data)
-                                .flatten()
-                        })
-                        .unwrap();
-
-                        (location, data, neighbor_chunks)
-                    })
-                    .par_bridge()
-                    .map(|(location, data, neighbor_chunks)| {
-                        let quads = ChunkMeshGenerator::generate_culled_mesh(location, data, neighbor_chunks);
-
-                        (location, quads)
-                    })
-                    .collect::<Vec<_>>()
-            };
-            timer.end("chunk_manager_meshing_generate_meshes");
-
-            timer.start("chunk_manager_meshing_save");
-            generated_meshes
-                .into_iter()
-                .for_each(|(location, quads)| {
-                    let mesh = ChunkMeshGenerator::generate_mesh_from_quads(location, quads, render_ctx, camera_bind_group_layout);
-                    self.total_vertices += mesh.vertices.len();
-                    self.total_triangles += mesh.indices.len() / 3;
-                    self.total_mesh_data_size += mem::size_of_val(mesh.indices.as_slice()) + mem::size_of_val(mesh.vertices.as_slice());
-
-                    let chunk_mesh = ChunkMesh::new(mesh);
-
-                    let Some(c) = self.chunks.get_mut(&location) else {
-                        panic!("chunk mesh was generated for a non-existent chunk");
+                        data.clone()
                     };
 
-                    c.attach_mesh(chunk_mesh)
-                        .expect("This to be a generated chunk");
+                    let neighbor_chunks = NeighborChunks::new(&location, |loc| {
+                        self.chunks
+                            .get(loc)
+                            .map(Chunk::get_data)
+                            .flatten()
+                    })
+                    .unwrap();
+
+                    let quads = ChunkRenderManager::generate_mesh(&data, neighbor_chunks);
+                    self.chunk_render_manager
+                        .save_mesh(quads, location, render_ctx, camera_bind_group_layout);
+
+                    self.chunks
+                        .get_mut(&location)
+                        .expect("Tried to generate mesh for chunk without data")
+                        .attach_mesh()
+                        .expect("this to not already have a mesh");
                 });
-            timer.end("chunk_manager_meshing_save");
         }
 
         timer.end("chunk_manager_meshing");
@@ -531,16 +515,7 @@ impl ChunkManager {
 
 impl Renderer for ChunkManager {
     fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, camera_bind_group: &'a BindGroup) {
-        self.chunks
-            .iter()
-            .filter_map(|(loc, stored_chunk)| match stored_chunk {
-                Chunk::Meshed { mesh, .. } => Some((loc, mesh)),
-                _ => None,
-            })
-            .for_each(|(_, chunk_mesh)| {
-                if let Some(renderer) = chunk_mesh.get_renderer(self.render_empty_chunks) {
-                    renderer.render(render_pass, camera_bind_group);
-                }
-            })
+        self.chunk_render_manager
+            .render(render_pass, camera_bind_group);
     }
 }

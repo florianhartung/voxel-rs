@@ -106,7 +106,7 @@ impl ChunkMeshGenerator {
         )
     }
 
-    pub fn generate_culled_mesh(current_location: ChunkLocation, data: &ChunkData, neighbor_chunks: NeighborChunks) -> Vec<Quad> {
+    pub fn generate_culled_mesh(data: &ChunkData, neighbor_chunks: NeighborChunks) -> Vec<Quad> {
         let mut quads = Vec::new();
 
         LocalChunkLocation::iter()

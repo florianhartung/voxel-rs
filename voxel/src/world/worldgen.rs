@@ -18,9 +18,9 @@ impl WorldGenerator {
 
     pub fn get_chunk_data_at(&self, chunk_location: ChunkLocation) -> ChunkData {
         // ChunkData::new_with_uniform_data(VoxelData::world(VoxelType::Dirt))
-        flat_perlin_terrain(self.world_seed, chunk_location)
+        // flat_perlin_terrain(self.world_seed, chunk_location)
         //perlin_3d(1, chunk_location)
-        // ChunkData::Voxels(Box::new(CONST_CHUNK.clone()))
+        ChunkData::Voxels(Box::new(CONST_CHUNK.clone()))
     }
 }
 
