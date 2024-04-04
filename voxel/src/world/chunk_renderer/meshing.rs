@@ -4,6 +4,7 @@ use std::ops::{Deref, Neg, Range};
 
 use anyhow::Context;
 use anyhow::Result;
+use cgmath::num_traits::real::Real;
 use cgmath::prelude::*;
 use cgmath::Vector3;
 use enum_map::EnumMap;
@@ -12,13 +13,12 @@ use itertools::iproduct;
 use lazy_static::lazy_static;
 use strum::IntoEnumIterator;
 
-use crate::rendering::RenderCtx;
 use crate::vector_utils::{AbsValue, RemEuclid};
 use crate::world::chunk_data::ChunkData;
+use crate::world::chunk_renderer::meshing::direction::Direction;
+use crate::world::chunk_renderer::meshing::quad::{FaceData, Quad};
+use crate::world::chunk_renderer::vertex::Vertex;
 use crate::world::location::{ChunkLocation, LocalChunkLocation, WithinBounds, WorldLocation};
-use crate::world::mesh::{Mesh, Vertex};
-use crate::world::meshing::direction::Direction;
-use crate::world::meshing::quad::{FaceData, Quad};
 use crate::world::voxel_data::VoxelType;
 use crate::world::CHUNK_SIZE;
 
@@ -30,16 +30,11 @@ pub struct ChunkMeshGenerator {
 }
 
 impl ChunkMeshGenerator {
-    pub fn generate_mesh_from_quads(
-        chunk_location: ChunkLocation,
-        quads: Vec<Quad>,
-        render_ctx: impl Deref<Target = RenderCtx>,
-        camera_bind_group_layout: &wgpu::BindGroupLayout,
-    ) -> Mesh {
+    pub fn generate_mesh_from_quads(quads: Vec<Quad>) -> (Vec<Vertex>, Vec<u32>) {
         let mut vertices: Vec<Vertex> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
 
-        quads.iter().for_each(|quad| {
+        for quad in quads {
             let base_index = vertices.len() as u32;
 
             let mut pos = quad.position.to_f32();
@@ -95,15 +90,9 @@ impl ChunkMeshGenerator {
             }
             .iter()
             .for_each(|i| indices.push(base_index + i));
-        });
+        }
 
-        Mesh::new(
-            render_ctx,
-            camera_bind_group_layout,
-            vertices,
-            indices,
-            chunk_location.to_world_location_f32(),
-        )
+        (vertices, indices)
     }
 
     pub fn generate_culled_mesh(data: &ChunkData, neighbor_chunks: NeighborChunks) -> Vec<Quad> {

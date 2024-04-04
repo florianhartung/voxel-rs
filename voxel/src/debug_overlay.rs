@@ -4,7 +4,7 @@ use std::mem;
 use std::sync::Arc;
 
 use cgmath::Vector3;
-use egui::{ClippedPrimitive, CollapsingHeader, CollapsingResponse, Color32, Context, RichText, Slider, Ui, Visuals, WidgetText};
+use egui::{ClippedPrimitive, CollapsingHeader, CollapsingResponse, Color32, Context, Slider, Ui, Visuals, WidgetText};
 use egui_wgpu::renderer::ScreenDescriptor;
 use wgpu::TextureFormat::Depth32Float;
 use wgpu::{BindGroup, CommandEncoder, RenderPass};
@@ -173,7 +173,7 @@ impl DebugOverlay {
 }
 
 impl Renderer for DebugOverlay {
-    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, _camera_bind_group: &'a BindGroup) {
+    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, _camera_bind_group: &'a BindGroup, render_ctx: &RenderCtx) {
         let paint_jobs = self
             .paint_jobs
             .as_ref()
@@ -183,7 +183,6 @@ impl Renderer for DebugOverlay {
             .render(render_pass, paint_jobs, &self.screen_descriptor);
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct PerFrameStats {

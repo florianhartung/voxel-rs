@@ -14,9 +14,9 @@ use crate::rendering::{RenderCtx, Renderer};
 use crate::timing::TimerManager;
 use crate::world::awesome_queue::AwesomeQueue;
 use crate::world::chunk_data::ChunkData;
+use crate::world::chunk_renderer::meshing::NeighborChunks;
 use crate::world::chunk_renderer::ChunkRenderManager;
 use crate::world::location::ChunkLocation;
-use crate::world::meshing::NeighborChunks;
 use crate::world::voxel_data::{VoxelData, VoxelType};
 use crate::world::worldgen::WorldGenerator;
 use crate::world::CHUNK_SIZE;
@@ -208,7 +208,7 @@ const NUM_DATA_GEN_THREAD: usize = 8;
 const DATA_GEN_THREAD_BATCH_SIZE: usize = 20;
 
 impl ChunkManager {
-    pub fn new(player_location: Vector3<f32>) -> Self {
+    pub fn new(player_location: Vector3<f32>, render_ctx: &RenderCtx, camera_bind_group_layout: &wgpu::BindGroupLayout) -> Self {
         let chunk_generator = Arc::new(WorldGenerator::new(123));
 
         let location_queue: Arc<AwesomeQueue<ChunkLocation>> = Arc::new(AwesomeQueue::new());
@@ -249,7 +249,7 @@ impl ChunkManager {
             render_empty_chunks: true,
             location_queue,
             generated_chunks_queue,
-            chunk_render_manager: ChunkRenderManager::new(),
+            chunk_render_manager: ChunkRenderManager::new(&render_ctx, camera_bind_group_layout),
         }
     }
 
@@ -462,9 +462,8 @@ impl ChunkManager {
                     })
                     .unwrap();
 
-                    let quads = ChunkRenderManager::generate_mesh(&data, neighbor_chunks);
                     self.chunk_render_manager
-                        .save_mesh(quads, location, render_ctx, camera_bind_group_layout);
+                        .generate_chunk_renderer(&data, neighbor_chunks, render_ctx, location);
 
                     self.chunks
                         .get_mut(&location)
@@ -514,8 +513,8 @@ impl ChunkManager {
 }
 
 impl Renderer for ChunkManager {
-    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, camera_bind_group: &'a BindGroup) {
+    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, camera_bind_group: &'a BindGroup, render_ctx: &RenderCtx) {
         self.chunk_render_manager
-            .render(render_pass, camera_bind_group);
+            .render(render_pass, camera_bind_group, render_ctx);
     }
 }

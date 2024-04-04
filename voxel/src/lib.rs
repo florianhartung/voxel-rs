@@ -86,7 +86,7 @@ impl Engine {
         let mut timer = TimerManager::new();
         timer.start("frame");
 
-        let mut chunk_manager = ChunkManager::new(camera.position.to_vec());
+        let mut chunk_manager = ChunkManager::new(camera.position.to_vec(), &render_ctx, &camera.bind_group_layout);
         chunk_manager.generate_chunks(&mut timer);
         chunk_manager.generate_chunk_meshes(&*render_ctx, &camera.bind_group_layout, &mut timer);
 

@@ -1,3 +1,4 @@
+use std::default::Default;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
 use std::sync::Mutex;
@@ -59,8 +60,11 @@ impl RenderCtx {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::POLYGON_MODE_LINE,
-                    limits: wgpu::Limits::default(),
+                    features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::PUSH_CONSTANTS,
+                    limits: wgpu::Limits {
+                        max_push_constant_size: 12,
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
                 None,
@@ -190,7 +194,7 @@ impl RenderHandle<'_> {
             });
         self.clear_before_next_render = false;
 
-        renderer.render(&mut render_pass, &camera.bind_group);
+        renderer.render(&mut render_pass, &camera.bind_group, self.render_ctx);
     }
 
     pub fn get_command_encoder(&mut self) -> &mut wgpu::CommandEncoder {
@@ -213,5 +217,5 @@ impl Drop for RenderHandle<'_> {
 }
 
 pub trait Renderer {
-    fn render<'a>(&'a self, _: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup);
+    fn render<'a>(&'a self, _: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup, render_ctx: &RenderCtx);
 }
