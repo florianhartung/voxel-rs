@@ -2,6 +2,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::{Add, Deref, DerefMut, Sub};
 
+use bytemuck::{Pod, Zeroable};
 use cgmath::Vector3;
 use itertools::iproduct;
 
@@ -42,7 +43,8 @@ impl WorldLocation {
 
 /// The location of a specific chunk in the world.
 /// Each ChunkLocation unit will be equal to one CHUNK_SIZE when rendering.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Pod, Zeroable)]
 pub struct ChunkLocation(Vector3<i32>);
 
 impl ChunkLocation {

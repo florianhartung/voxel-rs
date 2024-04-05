@@ -73,7 +73,7 @@ impl Engine {
 
         let camera = Camera::new(
             &*render_ctx,
-            (-79.21167, 5.4288225, -39.484493),
+            (16.0, -92.0, 13.0),
             Deg(-42.0),
             Deg(-20.0),
             width,

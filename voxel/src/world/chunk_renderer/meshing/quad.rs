@@ -3,7 +3,7 @@ use cgmath::Vector3;
 use crate::world::chunk_renderer::meshing::direction::Direction;
 use crate::world::location::{LocalChunkLocation, WithinBounds};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Quad {
     pub position: LocalChunkLocation<WithinBounds>,
     pub direction: Direction,
@@ -30,7 +30,7 @@ impl Quad {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FaceData {
     pub color: Vector3<f32>,
 }

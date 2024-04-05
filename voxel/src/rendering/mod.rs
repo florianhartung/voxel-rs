@@ -39,7 +39,7 @@ impl RenderCtx {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends: wgpu::Backends::VULKAN,
             ..Default::default()
         });
 
@@ -60,7 +60,11 @@ impl RenderCtx {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::PUSH_CONSTANTS,
+                    features: wgpu::Features::POLYGON_MODE_LINE
+                        | wgpu::Features::PUSH_CONSTANTS
+                        | wgpu::Features::MULTI_DRAW_INDIRECT
+                        | wgpu::Features::VERTEX_WRITABLE_STORAGE
+                        | wgpu::Features::SHADER_PRIMITIVE_INDEX,
                     limits: wgpu::Limits {
                         max_push_constant_size: 12,
                         ..Default::default()

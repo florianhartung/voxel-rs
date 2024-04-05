@@ -58,7 +58,7 @@ impl DebugOverlay {
             renderer: render_pass,
             screen_descriptor,
             last_fps_counts: VecDeque::with_capacity(10),
-            render_distance: 12,
+            render_distance: 2,
             render_empty_chunks: false,
             no_clip: true,
             render_ctx,

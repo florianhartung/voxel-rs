@@ -10,7 +10,8 @@ struct CameraUniform {
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
 
-var<push_constant> position_offset: vec3<f32>;
+@group(1) @binding(0)
+var<storage,read_write> chunk_pos_ssbo: array<vec3<i32>>;
 
 struct VertexInput {
 	@location(0) position_x_y_z_color_r: u32,
@@ -32,7 +33,7 @@ fn vs_main(
 	var model_normal: vec3<f32> = parse_model_normal(model.color_g_b_normal_ao);
 	var model_ao: f32 = parse_model_ao(model.color_g_b_normal_ao);
 
-	var vertex_position = model_position + position_offset;
+	var vertex_position = model_position;
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4((vertex_position), 1.0);
