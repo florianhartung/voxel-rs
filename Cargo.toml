@@ -4,11 +4,11 @@ default-members = ["voxel", "voxel-game"]
 resolver = "2"
 
 [workspace.package]
-edition = "2"
+edition = "2024"
 
 [profile.release]
 # enable debug for profiling
-debug = true
+# debug = true
 
 [profile.dev]
 opt-level = 1

@@ -4,7 +4,7 @@ use cgmath::{Deg, EuclideanSpace};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::{Fullscreen, Window, WindowBuilder};
+use winit::window::{Fullscreen, Window, WindowBuilder, CursorGrabMode};
 
 pub use starter::start;
 
@@ -192,7 +192,14 @@ impl Engine {
             key_press!(VirtualKeyCode::Escape) | close_requested!() => *control_flow = ControlFlow::ExitWithCode(0),
             key_press!(VirtualKeyCode::LAlt) => {
                 self.mouse_locked = !self.mouse_locked;
+
+                if self.mouse_locked {
+                    self.window.set_cursor_grab(CursorGrabMode::Confined).or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Locked)).unwrap();
+                } else {
+                    self.window.set_cursor_grab(CursorGrabMode::None).unwrap();
+                }
                 self.window.set_cursor_visible(!self.mouse_locked);
+                
             }
             Event::WindowEvent {
                 event:
@@ -217,9 +224,9 @@ impl Engine {
                 if self.mouse_locked {
                     self.camera_controller
                         .process_mouse(delta.0, delta.1);
-                    self.window
-                        .set_cursor_position(get_window_center_position(&self.window))
-                        .expect("Could not center mouse");
+                    // self.window
+                    //     .set_cursor_position(get_window_center_position(&self.window))
+                    //     .expect("Could not center mouse");
                 }
             }
             _ => {}
