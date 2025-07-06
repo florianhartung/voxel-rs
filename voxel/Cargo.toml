@@ -22,16 +22,18 @@ strum = "0.27"
 strum_macros = "0.27"
 noise = "0.9"
 static_assertions = "1"
-
-# do this until egui v0.32 is out
-egui = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
-egui-wgpu = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
-egui-winit = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
 rayon = "1"
 hashbrown = "0.15"
 lazy_static = "1"
 enum-map = "2"
 ahash = "0.8"
+crossbeam-queue = "0.3"
+
+# do this until egui v0.32 is out
+egui = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
+egui-wgpu = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
+egui-winit = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
+
 
 [dev-dependencies]
 criterion = { version = "0.6", features = ["html_reports"] }

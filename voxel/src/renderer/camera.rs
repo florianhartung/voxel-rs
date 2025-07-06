@@ -8,7 +8,7 @@ use wgpu::util::DeviceExt;
 use winit::event::ElementState;
 use winit::keyboard::KeyCode;
 
-use crate::rendering::RenderCtx;
+use crate::renderer::RenderCtx;
 use crate::world::chunk_manager::{Chunk, ChunkManager};
 use crate::world::location::WorldLocation;
 use crate::world::voxel_data::VoxelType;

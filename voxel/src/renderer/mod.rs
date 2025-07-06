@@ -7,8 +7,8 @@ use wgpu::{PresentMode, StoreOp, SurfaceTarget, TextureFormat};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::rendering::camera::Camera;
-use crate::rendering::texture::Texture;
+use crate::renderer::camera::Camera;
+use crate::renderer::texture::Texture;
 
 pub mod camera;
 pub mod texture;

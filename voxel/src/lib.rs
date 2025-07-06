@@ -10,16 +10,14 @@ use winit::window::{CursorGrabMode, Fullscreen, Window};
 
 use crate::debug_overlay::{DebugOverlay, PerFrameStats};
 use crate::frame_timer::FrameTimer;
-use crate::rendering::RenderCtx;
-use crate::rendering::camera::{Camera, CameraController};
+use crate::renderer::RenderCtx;
+use crate::renderer::camera::{Camera, CameraController};
 use crate::timing::TimerManager;
 use crate::world::chunk_manager::ChunkManager;
 
-#[macro_use]
-mod macros;
 mod debug_overlay;
 mod frame_timer;
-mod rendering;
+mod renderer;
 mod timing;
 pub(crate) mod util;
 pub mod vector_utils;

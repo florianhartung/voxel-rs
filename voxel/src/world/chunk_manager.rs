@@ -2,17 +2,17 @@ use std::collections::vec_deque::VecDeque;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{mem, thread};
+use std::{iter, mem, thread};
 
 use anyhow::{Result, bail};
 use cgmath::Vector3;
+use crossbeam_queue::SegQueue;
 use itertools::{Itertools, iproduct};
 use wgpu::{BindGroup, RenderPass};
 
-use crate::rendering::{RenderCtx, Renderer};
+use crate::renderer::{RenderCtx, Renderer};
 use crate::timing::TimerManager;
 use crate::world::CHUNK_SIZE;
-use crate::world::awesome_queue::AwesomeQueue;
 use crate::world::chunk_data::ChunkData;
 use crate::world::chunk_renderer::ChunkRenderManager;
 use crate::world::chunk_renderer::meshing::NeighborChunks;
@@ -178,8 +178,8 @@ pub struct ChunkManager {
     pub render_distance: i32,
     pub render_empty_chunks: bool,
 
-    pub location_queue: Arc<AwesomeQueue<ChunkLocation>>,
-    pub generated_chunks_queue: Arc<AwesomeQueue<ChunkGenResult>>,
+    pub location_queue: Arc<SegQueue<ChunkLocation>>,
+    pub generated_chunks_queue: Arc<SegQueue<ChunkGenResult>>,
     // pub mesh_gen_queue: Arc<AwesomeQueue<(ChunkLocation)>>,
     // pub generated_meshes_queue: Arc<AwesomeQueue<ChunkGenResult>>,
     chunk_render_manager: ChunkRenderManager,
@@ -210,8 +210,8 @@ impl ChunkManager {
     pub fn new(player_location: Vector3<f32>, render_ctx: &RenderCtx, camera_bind_group_layout: &wgpu::BindGroupLayout) -> Self {
         let chunk_generator = Arc::new(WorldGenerator::new(123));
 
-        let location_queue: Arc<AwesomeQueue<ChunkLocation>> = Arc::new(AwesomeQueue::new());
-        let generated_chunks_queue: Arc<AwesomeQueue<ChunkGenResult>> = Arc::new(AwesomeQueue::new());
+        let location_queue = Arc::new(SegQueue::new());
+        let generated_chunks_queue = Arc::new(SegQueue::new());
 
         for _ in 0..NUM_DATA_GEN_THREAD {
             let chunk_generator = Arc::clone(&chunk_generator);
@@ -221,15 +221,13 @@ impl ChunkManager {
                 .name("chunk data generator".to_owned())
                 .spawn(move || {
                     loop {
-                        let chunk_locs = location_queue.take_n(DATA_GEN_THREAD_BATCH_SIZE);
-
-                        if chunk_locs.len() == 0 {
-                            thread::sleep(Duration::from_millis(5));
+                        if location_queue.len() > 0 {
+                            iter::from_fn(|| location_queue.pop())
+                                .take(DATA_GEN_THREAD_BATCH_SIZE)
+                                .for_each(|loc| generated_chunks_queue.push(ChunkGenResult(loc, chunk_generator.get_chunk_data_at(loc))));
+                        } else {
+                            std::thread::sleep(Duration::from_millis(10));
                         }
-
-                        chunk_locs
-                            .into_iter()
-                            .for_each(|loc| generated_chunks_queue.insert(ChunkGenResult(loc, chunk_generator.get_chunk_data_at(loc))));
                     }
                 })
                 .unwrap();
@@ -268,116 +266,123 @@ impl ChunkManager {
         let last_player_position = self.last_player_position;
 
         timer.start("chunk_manager_save");
-        self.generated_chunks_queue
-            .take_all()
-            .into_iter()
-            .for_each(|ChunkGenResult(location, data)| {
-                match &data {
-                    ChunkData::Voxels(_) => {
-                        self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
-                    }
-                    ChunkData::UniformType(_) => {
-                        self.total_voxel_data_size += mem::size_of::<VoxelData>();
-                    }
+        iter::from_fn(|| self.generated_chunks_queue.pop()).for_each(|ChunkGenResult(location, data)| {
+            match &data {
+                ChunkData::Voxels(_) => {
+                    self.total_voxel_data_size += CHUNK_SIZE.pow(3) * mem::size_of::<VoxelData>();
                 }
-
-                // let is_regeneration = match self.chunks.get(&location) {
-                //     Some(Chunk::Generated {..}) => {
-                //         TODO if is Generated {queued: true}, then we must remove this from the mesh queue
-                // true
-                // }
-                // Some(Chunk::Meshed {..}) => {
-                //     Todo regenerate mesh
-                // true
-                // }
-                // _ => false,
-                // };
-
-                let mut chunk = self.chunks.entry(location).or_insert_with(|| Chunk::new());
-                chunk.attach_data(data).expect("chunk data to not be present already");
-                if chunk.neighbor_count() == Some(26) && chunk.enqueue_for_mesh_gen().unwrap() {
-                    self.chunk_mesh_queue.push_back(location);
+                ChunkData::UniformType(_) => {
+                    self.total_voxel_data_size += mem::size_of::<VoxelData>();
                 }
+            }
 
+            // let is_regeneration = match self.chunks.get(&location) {
+            //     Some(Chunk::Generated {..}) => {
+            //         TODO if is Generated {queued: true}, then we must remove this from the mesh queue
+            // true
+            // }
+            // Some(Chunk::Meshed {..}) => {
+            //     Todo regenerate mesh
+            // true
+            // }
+            // _ => false,
+            // };
 
-                // if !is_regeneration {
-                iproduct!(-1..=1, -1..=1, -1..=1).for_each(|(dx, dy, dz)| {
-                    if dx == 0 && dy == 0 && dz == 0 {
-                        return;
-                    }
-                    let loc = location + ChunkLocation::new(Vector3::new(dx, dy, dz));
+            let mut chunk = self
+                .chunks
+                .entry(location)
+                .or_insert_with(|| Chunk::new());
+            chunk
+                .attach_data(data)
+                .expect("chunk data to not be present already");
+            if chunk.neighbor_count() == Some(26) && chunk.enqueue_for_mesh_gen().unwrap() {
+                self.chunk_mesh_queue.push_back(location);
+            }
 
-                    let chunk = self.chunks.entry(loc).or_insert(Chunk::new());
-                    let new_neighbor_count = chunk.inc_neighbor_count().expect("this chunk to not be meshed already, as the data for the current chunk (its neighbor chunk) has just been generated");
+            // if !is_regeneration {
+            iproduct!(-1..=1, -1..=1, -1..=1).for_each(|(dx, dy, dz)| {
+                if dx == 0 && dy == 0 && dz == 0 {
+                    return;
+                }
+                let loc = location + ChunkLocation::new(Vector3::new(dx, dy, dz));
 
-                    if new_neighbor_count == 26 {
-                        match chunk.enqueue_for_mesh_gen() {
-                            Ok(true) => self.chunk_mesh_queue.push_back(loc),
-                            Err(_) => if chunk.enqueue_for_data_gen().unwrap() { self.location_queue.insert(loc) },
-                            Ok(false) => {},
+                let chunk = self.chunks.entry(loc).or_insert(Chunk::new());
+                let new_neighbor_count = chunk.inc_neighbor_count().expect(
+                    "this chunk to not be meshed already, as the data for the current chunk (its neighbor chunk) has just been generated",
+                );
+
+                if new_neighbor_count == 26 {
+                    match chunk.enqueue_for_mesh_gen() {
+                        Ok(true) => self.chunk_mesh_queue.push_back(loc),
+                        Err(_) => {
+                            if chunk.enqueue_for_data_gen().unwrap() {
+                                self.location_queue.push(loc)
+                            }
                         }
+                        Ok(false) => {}
                     }
+                }
 
-                    // #[cfg(debug_assertions)]
-                    // let chunks_unsafe = &self.chunks as *const hashbrown::HashMap<ChunkLocation, Chunk>;
-                    // 
-                    // if let Some(s) = self.chunks.get_mut(&loc) {
-                    //     match s {
-                    //         Chunk::None { num_neighbors_generated, .. } => {
-                    //             *num_neighbors_generated += 1;
-                    // 
-                    //             // Check if the num_neighbors_generated value is really correct.
-                    //             // This is implemented as a debug assertion as it may be costly when done for a lot of chunks
-                    //             #[cfg(debug_assertions)]
-                    //             {
-                    // 
-                    //                 let mut count_generated = 0;
-                    //                 iproduct!(-1..=1, -1..=1, -1..=1).for_each(|(dx, dy, dz)| {
-                    //                     if dx == 0 && dy == 0 && dz == 0 {
-                    //                         return;
-                    //                     }
-                    // 
-                    //                     let d = loc + ChunkLocation::new(Vector3::new(dx, dy, dz));
-                    //                     // # SAFETY
-                    //                     // self.chunks is currently mutably borrowed by this function.
-                    //                     // Thus no other thread has access to it and we can safely access it to look at values without storing them
-                    //                     let chunks_unsafe2 = unsafe { &*chunks_unsafe };
-                    //                     match chunks_unsafe2.get(&d) {
-                    //                         Some(Chunk::Generated { .. }) | Some(Chunk::Meshed { .. }) => {
-                    //                             count_generated += 1;
-                    //                         }
-                    //                         _ => {}
-                    //                     }
-                    //                 });
-                    //                 assert_eq!(count_generated, *num_neighbors_generated, "Invalid state of chunks where the None chunk at {loc:?} has a num_neighbors_generated of {}, but it really is {}", *num_neighbors_generated, count_generated);
-                    //             }
-                    //             if *num_neighbors_generated >= 27 {
-                    //                 panic!("a num_neighbors_generated of 27 should be impossible here, as there cannot exist an empty chunk with all of its neighbors chunks already generated");
-                    //             }
-                    //         }
-                    //         Chunk::Generated {
-                    //             num_neighbors_generated,
-                    //             queued,
-                    //             ..
-                    //         } => {
-                    //             assert_eq!(
-                    //                 *queued, false,
-                    //                 "chunk should not be queued for meshing already because this chunk's data has just been generated"
-                    //             );
-                    // 
-                    //             *num_neighbors_generated += 1;
-                    //             if *num_neighbors_generated == 26 {
-                    //                 *queued = true;
-                    //                 self.chunk_mesh_queue.push_back(loc);
-                    //             }
-                    //         }
-                    //         Chunk::Meshed { .. } => {
-                    //             panic!("chunk should not be meshed already because this neighbor chunk's data has just been generated")
-                    //         }
-                    //     }
-                })
-                // }
-            });
+                // #[cfg(debug_assertions)]
+                // let chunks_unsafe = &self.chunks as *const hashbrown::HashMap<ChunkLocation, Chunk>;
+                //
+                // if let Some(s) = self.chunks.get_mut(&loc) {
+                //     match s {
+                //         Chunk::None { num_neighbors_generated, .. } => {
+                //             *num_neighbors_generated += 1;
+                //
+                //             // Check if the num_neighbors_generated value is really correct.
+                //             // This is implemented as a debug assertion as it may be costly when done for a lot of chunks
+                //             #[cfg(debug_assertions)]
+                //             {
+                //
+                //                 let mut count_generated = 0;
+                //                 iproduct!(-1..=1, -1..=1, -1..=1).for_each(|(dx, dy, dz)| {
+                //                     if dx == 0 && dy == 0 && dz == 0 {
+                //                         return;
+                //                     }
+                //
+                //                     let d = loc + ChunkLocation::new(Vector3::new(dx, dy, dz));
+                //                     // # SAFETY
+                //                     // self.chunks is currently mutably borrowed by this function.
+                //                     // Thus no other thread has access to it and we can safely access it to look at values without storing them
+                //                     let chunks_unsafe2 = unsafe { &*chunks_unsafe };
+                //                     match chunks_unsafe2.get(&d) {
+                //                         Some(Chunk::Generated { .. }) | Some(Chunk::Meshed { .. }) => {
+                //                             count_generated += 1;
+                //                         }
+                //                         _ => {}
+                //                     }
+                //                 });
+                //                 assert_eq!(count_generated, *num_neighbors_generated, "Invalid state of chunks where the None chunk at {loc:?} has a num_neighbors_generated of {}, but it really is {}", *num_neighbors_generated, count_generated);
+                //             }
+                //             if *num_neighbors_generated >= 27 {
+                //                 panic!("a num_neighbors_generated of 27 should be impossible here, as there cannot exist an empty chunk with all of its neighbors chunks already generated");
+                //             }
+                //         }
+                //         Chunk::Generated {
+                //             num_neighbors_generated,
+                //             queued,
+                //             ..
+                //         } => {
+                //             assert_eq!(
+                //                 *queued, false,
+                //                 "chunk should not be queued for meshing already because this chunk's data has just been generated"
+                //             );
+                //
+                //             *num_neighbors_generated += 1;
+                //             if *num_neighbors_generated == 26 {
+                //                 *queued = true;
+                //                 self.chunk_mesh_queue.push_back(loc);
+                //             }
+                //         }
+                //         Chunk::Meshed { .. } => {
+                //             panic!("chunk should not be meshed already because this neighbor chunk's data has just been generated")
+                //         }
+                //     }
+            })
+            // }
+        });
         timer.end("chunk_manager_save");
 
         timer.start("chunk_manager_request_chunks");
@@ -396,7 +401,7 @@ impl ChunkManager {
                         .or_insert(Chunk::new());
 
                     if let Ok(true) = c.enqueue_for_data_gen() {
-                        self.location_queue.insert(location);
+                        self.location_queue.push(location);
                     }
                 });
         }

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 use wgpu::{BufferUsages, PipelineCompilationOptions, PushConstantRange, ShaderStages, include_wgsl};
 
-use crate::rendering::texture::Texture;
-use crate::rendering::{RenderCtx, Renderer};
+use crate::renderer::texture::Texture;
+use crate::renderer::{RenderCtx, Renderer};
 use crate::world::chunk_data::ChunkData;
 use crate::world::chunk_renderer::meshing::{ChunkMeshGenerator, NeighborChunks};
 use crate::world::chunk_renderer::vertex::Vertex;

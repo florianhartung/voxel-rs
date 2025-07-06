@@ -10,7 +10,7 @@ use wgpu::{BindGroup, CommandEncoder, RenderPass, TextureFormat};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-use crate::rendering::{RenderCtx, Renderer};
+use crate::renderer::{RenderCtx, Renderer};
 use crate::timing::TimerManager;
 
 pub struct DebugOverlay {
@@ -87,7 +87,7 @@ impl DebugOverlay {
         let average_fps: f32 = self.last_fps_counts.iter().sum::<f32>() / (self.last_fps_counts.len() as f32);
 
         self.context
-            .begin_frame(self.winit_state.take_egui_input(window));
+            .begin_pass(self.winit_state.take_egui_input(window));
 
         self.context.set_visuals(Visuals {
             window_fill: Color32::TRANSPARENT,

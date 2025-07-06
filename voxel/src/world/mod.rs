@@ -1,4 +1,3 @@
-mod awesome_queue;
 pub mod chunk_data;
 pub mod chunk_manager;
 pub mod chunk_renderer;
