@@ -1,42 +1,44 @@
 [package]
 name = "voxel"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = "0.28.6"
-wgpu = "0.18.0"
+winit = "0.30"
+wgpu = "25"
 bytemuck = { version = "1.13.1", features = ["derive"] }
-cgmath = { git = "https://github.com/rustgd/cgmath.git", features = ["bytemuck"] }
-pollster = "0.3.0"
-anyhow = "1.0.70"
-log = "0.4.17"
-env_logger = "0.10.0"
-fastrand = "1.9.0"
-timing = "0.2.3"
-itertools = "0.10.5"
-strum = "0.24.1"
-strum_macros = "0.24.3"
-noise = "0.8.2"
-static_assertions = "1.1.0"
-egui = "0.24.0"
-egui-wgpu = "0.24.0"
-egui-winit = "0.24.0"
-rayon = "1.7.0"
-hashbrown = "0.14.0"
-lazy_static = "1.4.0"
-enum-map = "2.7.3"
-ahash = "0.8.11"
+cgmath = { git = "https://github.com/rustgd/cgmath.git", features = [
+    "bytemuck",
+] }
+pollster = "0.4"
+anyhow = "1"
+log = "0.4"
+fastrand = "2"
+timing = "0.2"
+itertools = "0.14"
+strum = "0.27"
+strum_macros = "0.27"
+noise = "0.9"
+static_assertions = "1"
+
+# do this until egui v0.32 is out
+egui = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
+egui-wgpu = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
+egui-winit = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }
+rayon = "1"
+hashbrown = "0.15"
+lazy_static = "1"
+enum-map = "2"
+ahash = "0.8"
 
 [dev-dependencies]
-itertools = "0.10.5"
-criterion = { version = "0.4", features = ["html_reports"] }
-bracket-noise = "0.8.7"
-lazy_static = "1.4.0"
-simdnoise = "3.1.6"
-voxel = "0.1.0"
+criterion = { version = "0.6", features = ["html_reports"] }
+bracket-noise = "0.8"
+lazy_static = "1"
+simdnoise = "3"
+voxel = "0.1"
 
 [[bench]]
 name = "noise_benchmark"

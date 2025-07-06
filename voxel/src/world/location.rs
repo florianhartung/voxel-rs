@@ -208,8 +208,8 @@ impl<T> DerefMut for LocalChunkLocation<T> {
 mod tests {
     use cgmath::Vector3;
 
-    use crate::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
     use crate::world::CHUNK_SIZE;
+    use crate::world::location::{ChunkLocation, LocalChunkLocation, WorldLocation};
 
     #[test]
     fn test_world_location() {
@@ -222,7 +222,7 @@ mod tests {
             WorldLocation::new(chunk, local).0,
             Vector3::new(1 * CHUNK_SIZE as i32 + 5, 2 * CHUNK_SIZE as i32 + 6, 3 * CHUNK_SIZE as i32 + 7)
         );
-        assert_eq!(WorldLocation::new(chunk, local).separate().0 .0, chunk.0);
+        assert_eq!(WorldLocation::new(chunk, local).separate().0.0, chunk.0);
         assert_eq!(
             WorldLocation::new(chunk, local)
                 .separate()
@@ -239,7 +239,7 @@ mod tests {
         );
 
         let negative_world_location = WorldLocation(Vector3::new(-1, -65, 1));
-        assert_eq!(negative_world_location.separate().0 .0, Vector3::new(-1, -3, 0));
+        assert_eq!(negative_world_location.separate().0.0, Vector3::new(-1, -3, 0));
         assert_eq!(
             negative_world_location.separate().1.location,
             Vector3::new(CHUNK_SIZE as i32 - 1, CHUNK_SIZE as i32 - 1, 1)

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use wgpu::util::DeviceExt;
-use wgpu::{include_wgsl, BufferUsages, PushConstantRange, ShaderStages};
+use wgpu::{BufferUsages, PipelineCompilationOptions, PushConstantRange, ShaderStages, include_wgsl};
 
 use crate::rendering::texture::Texture;
 use crate::rendering::{RenderCtx, Renderer};
@@ -44,7 +44,8 @@ impl ChunkRenderManager {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     buffers: &[Vertex::layout()],
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
@@ -57,7 +58,8 @@ impl ChunkRenderManager {
                         blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -81,6 +83,7 @@ impl ChunkRenderManager {
                 }),
                 multisample: Default::default(),
                 multiview: None,
+                cache: None,
             });
 
         Self {
@@ -100,21 +103,23 @@ impl ChunkRenderManager {
 
         let (vertices, mut indices) = ChunkMeshGenerator::generate_mesh_from_quads(quads);
 
-        let vertex_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Chunks vertex buffer"),
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                contents: bytemuck::cast_slice(&vertices),
-            });
+        let vertex_buffer = (vertices.len() > 0).then(|| {
+            ctx.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Chunks vertex buffer"),
+                    usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                    contents: bytemuck::cast_slice(&vertices),
+                })
+        });
 
-        let index_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Chunks index buffer"),
-                usage: wgpu::BufferUsages::INDEX | BufferUsages::COPY_DST,
-                contents: bytemuck::cast_slice(&indices),
-            });
+        let index_buffer = (indices.len() > 0).then(|| {
+            ctx.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Chunks index buffer"),
+                    usage: wgpu::BufferUsages::INDEX | BufferUsages::COPY_DST,
+                    contents: bytemuck::cast_slice(&indices),
+                })
+        });
 
         let renderer = ChunkRenderer {
             vertex_buffer,
@@ -127,26 +132,32 @@ impl ChunkRenderManager {
 }
 
 impl Renderer for ChunkRenderManager {
-    fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup, render_ctx: &RenderCtx) {
+    fn render<'a>(&'a self, mut render_pass: wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup, render_ctx: &RenderCtx) {
         for (position, renderer) in &self.renderers {
-            render_pass.set_pipeline(&self.render_pipeline);
+            if let Some((vertex_buffer, index_buffer)) = renderer
+                .vertex_buffer
+                .as_ref()
+                .zip(renderer.index_buffer.as_ref())
+            {
+                render_pass.set_pipeline(&self.render_pipeline);
 
-            render_pass.set_vertex_buffer(0, renderer.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(renderer.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-            render_pass.set_bind_group(0, camera_bind_group, &[]);
+                render_pass.set_bind_group(0, camera_bind_group, &[]);
 
-            // Push current chunk location
-            let loc = [position.to_world_location_f32()];
-            render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&loc));
+                // Push current chunk location
+                let loc = [position.to_world_location_f32()];
+                render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&loc));
 
-            render_pass.draw_indexed(0..renderer.num_indices, 0, 0..1);
+                render_pass.draw_indexed(0..renderer.num_indices, 0, 0..1);
+            }
         }
     }
 }
 
 pub struct ChunkRenderer {
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
+    vertex_buffer: Option<wgpu::Buffer>,
+    index_buffer: Option<wgpu::Buffer>,
     num_indices: u32,
 }

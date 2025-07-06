@@ -1,9 +1,9 @@
 use std::default::Default;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-use wgpu::{PresentMode, StoreOp, TextureFormat};
+use wgpu::{PresentMode, StoreOp, SurfaceTarget, TextureFormat};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -27,7 +27,7 @@ pub struct RenderHandle<'a> {
 
 #[derive(Debug)]
 pub struct RenderCtx {
-    pub surface: wgpu::Surface,
+    pub surface: wgpu::Surface<'static>,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface_config: Mutex<wgpu::SurfaceConfiguration>,
@@ -35,18 +35,17 @@ pub struct RenderCtx {
 }
 
 impl RenderCtx {
-    pub async fn new(window: &Window, enable_vsync: bool) -> Self {
+    pub async fn new(window: Arc<Window>, enable_vsync: bool) -> Self {
         let size = window.inner_size();
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
 
-        // # Safety
-        // The surface needs to live as long as the window that created it.
-        // This is safe because RenderState owns both
-        let surface = unsafe { instance.create_surface(&window) }.expect("WGPU failed to create a surface from the window");
+        let surface = instance
+            .create_surface(SurfaceTarget::<'static>::from(window))
+            .unwrap();
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -58,17 +57,14 @@ impl RenderCtx {
             .expect("WGPU could not find a compatible adapter");
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::PUSH_CONSTANTS,
-                    limits: wgpu::Limits {
-                        max_push_constant_size: 12,
-                        ..Default::default()
-                    },
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::PUSH_CONSTANTS,
+                required_limits: wgpu::Limits {
+                    max_push_constant_size: 12,
                     ..Default::default()
                 },
-                None,
-            )
+                ..Default::default()
+            })
             .await
             .expect("Could not request device and queue");
 
@@ -92,6 +88,7 @@ impl RenderCtx {
             },
             alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: Vec::new(),
+            desired_maximum_frame_latency: 2, // TODO maybe change to 1?
         };
 
         surface.configure(&device, &surface_config);
@@ -169,7 +166,7 @@ impl RenderHandle<'_> {
             .try_lock()
             .expect("Mutex to be unlocked");
 
-        let mut render_pass = self
+        let render_pass = self
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -194,7 +191,7 @@ impl RenderHandle<'_> {
             });
         self.clear_before_next_render = false;
 
-        renderer.render(&mut render_pass, &camera.bind_group, self.render_ctx);
+        renderer.render(render_pass, &camera.bind_group, self.render_ctx);
     }
 
     pub fn get_command_encoder(&mut self) -> &mut wgpu::CommandEncoder {
@@ -217,5 +214,5 @@ impl Drop for RenderHandle<'_> {
 }
 
 pub trait Renderer {
-    fn render<'a>(&'a self, _: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup, render_ctx: &RenderCtx);
+    fn render<'a>(&'a self, _: wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup, render_ctx: &RenderCtx);
 }

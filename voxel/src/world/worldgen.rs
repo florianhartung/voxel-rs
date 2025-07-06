@@ -1,11 +1,11 @@
-use cgmath::num_traits::real::Real;
 use cgmath::num_traits::Pow;
+use cgmath::num_traits::real::Real;
 use noise::{NoiseFn, Perlin};
 
+use crate::world::CHUNK_SIZE;
 use crate::world::chunk_data::ChunkData;
 use crate::world::location::{ChunkLocation, LocalChunkLocation};
 use crate::world::voxel_data::{VoxelData, VoxelType};
-use crate::world::CHUNK_SIZE;
 
 pub struct WorldGenerator {
     world_seed: u32,
@@ -19,8 +19,8 @@ impl WorldGenerator {
     pub fn get_chunk_data_at(&self, chunk_location: ChunkLocation) -> ChunkData {
         // ChunkData::new_with_uniform_data(VoxelData::world(VoxelType::Dirt))
         // flat_perlin_terrain(self.world_seed, chunk_location)
-        //perlin_3d(1, chunk_location)
-        ChunkData::Voxels(Box::new(CONST_CHUNK.clone()))
+        perlin_3d(1, chunk_location)
+        // ChunkData::Voxels(Box::new(CONST_CHUNK.clone()))
     }
 }
 

@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Formatter};
 
+use crate::world::CHUNK_SIZE;
 use crate::world::location::{LocalChunkLocation, OutsideBounds, WithinBounds};
 use crate::world::voxel_data::{VoxelData, VoxelType};
-use crate::world::CHUNK_SIZE;
 
 #[derive(Clone)]
 pub enum ChunkData {

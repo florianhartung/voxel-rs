@@ -3,9 +3,10 @@ use std::time::Duration;
 use bytemuck::Zeroable;
 use cgmath::num_traits::FloatConst;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Rad, Vector3, Zero};
-use wgpu::util::DeviceExt;
 use wgpu::BindingType;
-use winit::event::{ElementState, VirtualKeyCode};
+use wgpu::util::DeviceExt;
+use winit::event::ElementState;
+use winit::keyboard::KeyCode;
 
 use crate::rendering::RenderCtx;
 use crate::world::chunk_manager::{Chunk, ChunkManager};
@@ -193,24 +194,24 @@ impl CameraController {
         }
     }
 
-    pub fn process_keyboard(&mut self, key: &VirtualKeyCode, state: &ElementState) -> bool {
+    pub fn maybe_handle_keyboard_input(&mut self, key: &KeyCode, state: &ElementState) -> bool {
         let is_pressed = matches!(state, ElementState::Pressed);
 
-        use VirtualKeyCode::{LShift, Space, A, D, S, W};
+        use KeyCode::{KeyA, KeyD, KeyS, KeyW, ShiftLeft, Space};
         match key {
-            W => {
+            KeyW => {
                 self.forward = is_pressed;
                 true
             }
-            S => {
+            KeyS => {
                 self.backward = is_pressed;
                 true
             }
-            A => {
+            KeyA => {
                 self.left = is_pressed;
                 true
             }
-            D => {
+            KeyD => {
                 self.right = is_pressed;
                 true
             }
@@ -219,7 +220,7 @@ impl CameraController {
                 self.is_jumping = is_pressed;
                 true
             }
-            LShift => {
+            ShiftLeft => {
                 self.down = is_pressed;
                 true
             }
@@ -242,7 +243,7 @@ impl CameraController {
                 )
                 .separate();
 
-                let mut is_grounded = chunk_manager
+                let is_grounded = chunk_manager
                     .chunks
                     .get(&chunk_location)
                     .map(|chunk| {
@@ -279,7 +280,7 @@ impl CameraController {
                             )
                             .separate();
 
-                            let mut is_grounded = chunk_manager
+                            let is_grounded = chunk_manager
                                 .chunks
                                 .get(&chunk_location)
                                 .map(|chunk| {

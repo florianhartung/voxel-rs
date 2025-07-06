@@ -4,10 +4,9 @@ use std::mem;
 use std::sync::Arc;
 
 use cgmath::Vector3;
-use egui::{ClippedPrimitive, CollapsingHeader, CollapsingResponse, Color32, Context, Slider, Ui, Visuals, WidgetText};
-use egui_wgpu::renderer::ScreenDescriptor;
-use wgpu::TextureFormat::Depth32Float;
-use wgpu::{BindGroup, CommandEncoder, RenderPass};
+use egui::{ClippedPrimitive, CollapsingHeader, CollapsingResponse, Color32, Context, Slider, Ui, ViewportId, Visuals, WidgetText};
+use egui_wgpu::ScreenDescriptor;
+use wgpu::{BindGroup, CommandEncoder, RenderPass, TextureFormat};
 use winit::event::WindowEvent;
 use winit::window::Window;
 
@@ -34,7 +33,7 @@ pub struct DebugOverlay {
 impl DebugOverlay {
     pub fn new(render_ctx: Arc<RenderCtx>, window: &Window) -> Self {
         let context = Context::default();
-        let winit_state = egui_winit::State::new(context.viewport_id(), window, None, None);
+        let winit_state = egui_winit::State::new(context.clone(), context.viewport_id(), window, None, None, None);
 
         let render_pass = egui_wgpu::Renderer::new(
             &render_ctx.device,
@@ -43,8 +42,9 @@ impl DebugOverlay {
                 .try_lock()
                 .expect("i hope this isn't locked")
                 .format,
-            Some(Depth32Float),
+            Some(TextureFormat::Depth32Float),
             1,
+            false,
         );
 
         let screen_descriptor = ScreenDescriptor {
@@ -67,16 +67,14 @@ impl DebugOverlay {
         }
     }
 
-    pub fn handle_event(&mut self, event: &WindowEvent) -> bool {
-        let result = self
-            .winit_state
-            .on_window_event(&self.context, event);
+    pub fn handle_event(&mut self, window: &Window, event: &WindowEvent) -> bool {
+        let result = self.winit_state.on_window_event(window, event);
 
         if let WindowEvent::Resized(new_size) = &event {
             self.screen_descriptor.size_in_pixels = [new_size.width, new_size.height];
         }
 
-        self.screen_descriptor.pixels_per_point = self.winit_state.pixels_per_point();
+        self.screen_descriptor.pixels_per_point = window.scale_factor() as f32;
 
         result.consumed
     }
@@ -173,14 +171,14 @@ impl DebugOverlay {
 }
 
 impl Renderer for DebugOverlay {
-    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, _camera_bind_group: &'a BindGroup, render_ctx: &RenderCtx) {
+    fn render<'a>(&'a self, render_pass: RenderPass<'a>, _camera_bind_group: &'a BindGroup, render_ctx: &RenderCtx) {
         let paint_jobs = self
             .paint_jobs
             .as_ref()
             .expect("no paint jobs were prepared");
 
         self.renderer
-            .render(render_pass, paint_jobs, &self.screen_descriptor);
+            .render(&mut render_pass.forget_lifetime(), paint_jobs, &self.screen_descriptor);
     }
 }
 

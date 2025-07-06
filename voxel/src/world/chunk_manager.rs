@@ -4,22 +4,21 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{mem, thread};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use cgmath::Vector3;
-use itertools::{iproduct, Itertools};
-use rayon::prelude::*;
+use itertools::{Itertools, iproduct};
 use wgpu::{BindGroup, RenderPass};
 
 use crate::rendering::{RenderCtx, Renderer};
 use crate::timing::TimerManager;
+use crate::world::CHUNK_SIZE;
 use crate::world::awesome_queue::AwesomeQueue;
 use crate::world::chunk_data::ChunkData;
-use crate::world::chunk_renderer::meshing::NeighborChunks;
 use crate::world::chunk_renderer::ChunkRenderManager;
+use crate::world::chunk_renderer::meshing::NeighborChunks;
 use crate::world::location::ChunkLocation;
 use crate::world::voxel_data::{VoxelData, VoxelType};
 use crate::world::worldgen::WorldGenerator;
-use crate::world::CHUNK_SIZE;
 
 #[derive(Debug)]
 pub enum Chunk {
@@ -220,16 +219,18 @@ impl ChunkManager {
             let generated_chunks_queue = Arc::clone(&generated_chunks_queue);
             thread::Builder::new()
                 .name("chunk data generator".to_owned())
-                .spawn(move || loop {
-                    let chunk_locs = location_queue.take_n(DATA_GEN_THREAD_BATCH_SIZE);
+                .spawn(move || {
+                    loop {
+                        let chunk_locs = location_queue.take_n(DATA_GEN_THREAD_BATCH_SIZE);
 
-                    if chunk_locs.len() == 0 {
-                        thread::sleep(Duration::from_millis(5));
+                        if chunk_locs.len() == 0 {
+                            thread::sleep(Duration::from_millis(5));
+                        }
+
+                        chunk_locs
+                            .into_iter()
+                            .for_each(|loc| generated_chunks_queue.insert(ChunkGenResult(loc, chunk_generator.get_chunk_data_at(loc))));
                     }
-
-                    chunk_locs
-                        .into_iter()
-                        .for_each(|loc| generated_chunks_queue.insert(ChunkGenResult(loc, chunk_generator.get_chunk_data_at(loc))));
                 })
                 .unwrap();
         }
@@ -513,7 +514,7 @@ impl ChunkManager {
 }
 
 impl Renderer for ChunkManager {
-    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, camera_bind_group: &'a BindGroup, render_ctx: &RenderCtx) {
+    fn render<'a>(&'a self, render_pass: RenderPass<'a>, camera_bind_group: &'a BindGroup, render_ctx: &RenderCtx) {
         self.chunk_render_manager
             .render(render_pass, camera_bind_group, render_ctx);
     }

@@ -4,9 +4,9 @@ use std::ops::{Deref, Neg, Range};
 
 use anyhow::Context;
 use anyhow::Result;
+use cgmath::Vector3;
 use cgmath::num_traits::real::Real;
 use cgmath::prelude::*;
-use cgmath::Vector3;
 use enum_map::EnumMap;
 use fastrand::Rng;
 use itertools::iproduct;
@@ -14,13 +14,13 @@ use lazy_static::lazy_static;
 use strum::IntoEnumIterator;
 
 use crate::vector_utils::{AbsValue, RemEuclid};
+use crate::world::CHUNK_SIZE;
 use crate::world::chunk_data::ChunkData;
 use crate::world::chunk_renderer::meshing::direction::Direction;
 use crate::world::chunk_renderer::meshing::quad::{FaceData, Quad};
 use crate::world::chunk_renderer::vertex::Vertex;
 use crate::world::location::{ChunkLocation, LocalChunkLocation, WithinBounds, WorldLocation};
 use crate::world::voxel_data::VoxelType;
-use crate::world::CHUNK_SIZE;
 
 pub mod direction;
 pub mod quad;

@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use bytemuck::{Pod, Zeroable};
-use cgmath::num_traits::ToPrimitive;
 use cgmath::Vector3;
+use cgmath::num_traits::ToPrimitive;
 use wgpu::vertex_attr_array;
 
 /// Layout:

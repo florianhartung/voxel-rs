@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use noise::NoiseFn;

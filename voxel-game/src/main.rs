@@ -1,5 +1,5 @@
 use clap::Parser;
-use log::{info, LevelFilter};
+use log::{LevelFilter, info};
 
 use voxel::EngineConfig;
 
@@ -20,7 +20,7 @@ struct Args {
     fullscreen: bool,
 }
 
-fn main() -> ! {
+fn main() {
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info)
         .filter_module("wgpu_hal::vulkan::instance", LevelFilter::Off) // suppress invalid vulkan validation layer error (see https://github.com/gfx-rs/wgpu/pull/4002)

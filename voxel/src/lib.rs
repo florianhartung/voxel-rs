@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use cgmath::{Deg, EuclideanSpace};
+use windowing::Event;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
-use winit::event::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::{Fullscreen, Window, WindowBuilder, CursorGrabMode};
-
-pub use starter::start;
+use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::{CursorGrabMode, Fullscreen, Window};
 
 use crate::debug_overlay::{DebugOverlay, PerFrameStats};
 use crate::frame_timer::FrameTimer;
-use crate::rendering::camera::{Camera, CameraController};
 use crate::rendering::RenderCtx;
+use crate::rendering::camera::{Camera, CameraController};
 use crate::timing::TimerManager;
 use crate::world::chunk_manager::ChunkManager;
 
@@ -20,11 +20,15 @@ mod macros;
 mod debug_overlay;
 mod frame_timer;
 mod rendering;
-mod starter;
 mod timing;
 pub(crate) mod util;
 pub mod vector_utils;
+mod windowing;
 pub mod world;
+
+pub fn start(engine_config: EngineConfig) {
+    windowing::run_window_app::<Engine, EngineConfig>(engine_config);
+}
 
 pub struct EngineConfig {
     pub run_benchmark: bool,
@@ -34,7 +38,7 @@ pub struct EngineConfig {
 }
 
 pub struct Engine {
-    window: Window,
+    window: Arc<Window>,
     frame_timer: FrameTimer,
     render_ctx: Arc<RenderCtx>,
 
@@ -48,17 +52,17 @@ pub struct Engine {
     timer: TimerManager,
 }
 
-impl Engine {
-    fn new(event_loop: &EventLoop<()>, engine_config: EngineConfig) -> Self {
-        let window = WindowBuilder::new()
-            .with_inner_size(PhysicalSize::new(engine_config.window_size.0, engine_config.window_size.1))
-            .build(event_loop)
+impl windowing::Application<EngineConfig> for Engine {
+    fn new(window: Arc<Window>, _initial_window_size: (u32, u32), config: EngineConfig) -> Self {
+        window
+            .request_inner_size(PhysicalSize::new(config.window_size.0, config.window_size.1))
             .unwrap();
-        if engine_config.fullscreen {
+
+        if config.fullscreen {
             window.set_fullscreen(Some(Fullscreen::Borderless(None)));
         }
 
-        let render_ctx = pollster::block_on(RenderCtx::new(&window, engine_config.vsync));
+        let render_ctx = pollster::block_on(RenderCtx::new(window.clone(), config.vsync));
 
         let render_ctx = Arc::new(render_ctx);
 
@@ -105,6 +109,97 @@ impl Engine {
         }
     }
 
+    fn handle_event(&mut self, event: Event, active_event_loop: &winit::event_loop::ActiveEventLoop) {
+        if let Event::WindowEvent(window_event) = &event
+            && self.maybe_handle_resize(window_event)
+        {
+            self.egui_interface
+                .handle_event(&self.window, window_event);
+            return;
+        }
+
+        match event {
+            // Render
+            Event::WindowEvent(WindowEvent::RedrawRequested) => {
+                self.render();
+                self.window.request_redraw();
+            }
+            // Close
+            Event::WindowEvent(WindowEvent::CloseRequested)
+            | Event::WindowEvent(WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(KeyCode::Escape),
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            }) => {
+                active_event_loop.exit();
+            }
+            // Toggle mouse lock
+            Event::WindowEvent(WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(KeyCode::AltLeft),
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            }) => {
+                self.mouse_locked = !self.mouse_locked;
+
+                if self.mouse_locked {
+                    self.window
+                        .set_cursor_grab(CursorGrabMode::Confined)
+                        .or_else(|_| {
+                            self.window
+                                .set_cursor_grab(CursorGrabMode::Locked)
+                        })
+                        .unwrap();
+                } else {
+                    self.window
+                        .set_cursor_grab(CursorGrabMode::None)
+                        .unwrap();
+                }
+                self.window.set_cursor_visible(!self.mouse_locked);
+            }
+            // Camera control
+            Event::WindowEvent(WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(key_code),
+                        state,
+                        ..
+                    },
+                ..
+            }) => {
+                self.camera_controller
+                    .maybe_handle_keyboard_input(&key_code, &state);
+            }
+            Event::DeviceEvent(DeviceEvent::MouseMotion { delta }) => {
+                if self.mouse_locked {
+                    self.camera_controller
+                        .process_mouse(delta.0, delta.1);
+                    // self.window
+                    //     .set_cursor_position(get_window_center_position(&self.window))
+                    //     .expect("Could not center mouse");
+                }
+            }
+            _ => {}
+        }
+
+        // Egui
+        if let Event::WindowEvent(window_event) = event
+            && !self.mouse_locked
+        {
+            self.egui_interface
+                .handle_event(&self.window, &window_event);
+        }
+    }
+}
+
+impl Engine {
     fn render(&mut self) {
         self.timer.start("render_all");
         let render_ctx = &*self.render_ctx;
@@ -180,86 +275,22 @@ impl Engine {
         self.timer.end("render_all");
     }
 
-    fn handle_event(&mut self, event: Event<()>, control_flow: &mut ControlFlow) {
-        if self.handle_resize(&event) {
-            if let Event::WindowEvent { event, .. } = event {
-                self.egui_interface.handle_event(&event);
-            }
-            return;
-        }
-
+    fn maybe_handle_resize(&mut self, event: &WindowEvent) -> bool {
         match event {
-            key_press!(VirtualKeyCode::Escape) | close_requested!() => *control_flow = ControlFlow::ExitWithCode(0),
-            key_press!(VirtualKeyCode::LAlt) => {
-                self.mouse_locked = !self.mouse_locked;
-
-                if self.mouse_locked {
-                    self.window.set_cursor_grab(CursorGrabMode::Confined).or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Locked)).unwrap();
-                } else {
-                    self.window.set_cursor_grab(CursorGrabMode::None).unwrap();
-                }
-                self.window.set_cursor_visible(!self.mouse_locked);
-                
+            WindowEvent::Resized(new_size) => {
+                self.render_ctx.resize(new_size);
+                self.camera
+                    .resize(new_size.width, new_size.height);
+                true
             }
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(virtual_keycode),
-                                state,
-                                ..
-                            },
-                        ..
-                    },
-                ..
-            } => {
-                self.camera_controller
-                    .process_keyboard(&virtual_keycode, &state);
+            WindowEvent::ScaleFactorChanged { .. } => {
+                let new_inner_size = self.window.inner_size();
+                self.render_ctx.resize(&new_inner_size);
+                self.camera
+                    .resize(new_inner_size.width, new_inner_size.height);
+                true
             }
-            Event::DeviceEvent {
-                event: DeviceEvent::MouseMotion { delta },
-                ..
-            } => {
-                if self.mouse_locked {
-                    self.camera_controller
-                        .process_mouse(delta.0, delta.1);
-                    // self.window
-                    //     .set_cursor_position(get_window_center_position(&self.window))
-                    //     .expect("Could not center mouse");
-                }
-            }
-            _ => {}
-        }
-
-        if let Event::WindowEvent { event, .. } = event {
-            self.egui_interface.handle_event(&event);
-        }
-    }
-
-    fn handle_resize(&mut self, event: &Event<()>) -> bool {
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::Resized(new_size) => {
-                    self.render_ctx.resize(new_size);
-                    self.camera
-                        .resize(new_size.width, new_size.height);
-                    true
-                }
-                WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                    self.render_ctx.resize(new_inner_size);
-                    self.camera
-                        .resize(new_inner_size.width, new_inner_size.height);
-                    true
-                }
-                _ => false,
-            },
             _ => false,
         }
     }
-}
-
-fn get_window_center_position(window: &Window) -> PhysicalPosition<u32> {
-    let inner_size = window.inner_size();
-    PhysicalPosition::new(inner_size.width / 2, inner_size.height / 2)
 }
