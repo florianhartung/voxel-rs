@@ -112,12 +112,12 @@ impl DebugOverlay {
 
             ui.collapsing_opened("World generation", |ui| {
                 ui.label(format!("Total chunks: {}", stats.num_chunks));
-                ui.label(format!("Chunk gen queue size: {}", stats.current_chunkgen_queue_size));
+                ui.label(format!("Worker thread pool queue size: {}", stats.worker_thread_pool_queue_size));
                 ui.label(format!(
                     "Generated pending chunk queue size: {}",
                     stats.current_chunkdata_buffer_size
                 ));
-                ui.label(format!("Chunk mesh queue size: {}", stats.current_meshgen_queue_size));
+                ui.label(format!("Current meshed chunks queue size (waiting to be saved): {}", stats.current_meshed_chunks_queue_size));
             });
 
             ui.collapsing_opened("Rendering", |ui| {
@@ -193,8 +193,8 @@ pub struct PerFrameStats {
     pub total_voxel_data_size: usize,
     pub total_mesh_data_size: usize,
     pub currently_rendered_chunk_radius: i32,
-    pub current_meshgen_queue_size: usize,
-    pub current_chunkgen_queue_size: usize,
+    pub current_meshed_chunks_queue_size: usize,
+    pub worker_thread_pool_queue_size: usize,
     pub current_chunkdata_buffer_size: usize,
 }
 

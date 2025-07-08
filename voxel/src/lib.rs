@@ -90,7 +90,7 @@ impl windowing::Application<EngineConfig> for Engine {
 
         let mut chunk_manager = ChunkManager::new(camera.position.to_vec(), &render_ctx, &camera.bind_group_layout);
         chunk_manager.generate_chunks(&mut timer);
-        chunk_manager.generate_chunk_meshes(&*render_ctx, &camera.bind_group_layout, &mut timer);
+        chunk_manager.stream_chunk_meshes(&*render_ctx, &camera.bind_group_layout, &mut timer);
 
         let imgui_overlay = DebugOverlay::new(Arc::clone(&render_ctx), &window);
 
@@ -226,7 +226,7 @@ impl Engine {
             .generate_chunks(&mut self.timer);
 
         self.chunk_manager
-            .generate_chunk_meshes(&*render_ctx, &self.camera.bind_group_layout, &mut self.timer);
+            .stream_chunk_meshes(&*render_ctx, &self.camera.bind_group_layout, &mut self.timer);
 
         self.timer.start("chunk_manager_unloading");
         self.chunk_manager.unload_chunks();
@@ -243,8 +243,8 @@ impl Engine {
             total_voxel_data_size: self.chunk_manager.total_voxel_data_size,
             total_mesh_data_size: self.chunk_manager.total_mesh_data_size,
             currently_rendered_chunk_radius: self.chunk_manager.current_chunk_mesh_radius - 1,
-            current_meshgen_queue_size: self.chunk_manager.chunk_mesh_queue.len(),
-            current_chunkgen_queue_size: self.chunk_manager.location_queue.len(),
+            current_meshed_chunks_queue_size: self.chunk_manager.meshed_chunks_queue.len(),
+            worker_thread_pool_queue_size: self.chunk_manager.worker_thread_pool.queued_count(),
             current_chunkdata_buffer_size: self.chunk_manager.generated_chunks_queue.len(),
         };
 

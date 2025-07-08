@@ -28,6 +28,7 @@ lazy_static = "1"
 enum-map = "2"
 ahash = "0.8"
 crossbeam-queue = "0.3"
+threadpool = "1"
 
 # do this until egui v0.32 is out
 egui = { git = "https://github.com/emilk/egui", rev = "7ac137bfc167d0f7ff78d5fd042d6042ff190455" }

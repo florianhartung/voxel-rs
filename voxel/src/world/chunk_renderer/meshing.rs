@@ -1,6 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, Neg, Range};
+use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -195,13 +196,13 @@ impl ChunkMeshGenerator {
     }
 }
 
-pub struct NeighborChunks<'a> {
-    pub chunk_data: [&'a ChunkData; 27],
+pub struct NeighborChunks {
+    pub chunk_data: [Arc<ChunkData>; 27],
 }
 
-impl<'a> NeighborChunks<'a> {
-    pub fn new<'b: 'a, F: Fn(&ChunkLocation) -> Option<&'b ChunkData> + 'b>(around: &ChunkLocation, get_chunk: F) -> Result<Self> {
-        let mut v: [Option<&'b ChunkData>; 27] = [None; 27];
+impl NeighborChunks {
+    pub fn new<F: Fn(&ChunkLocation) -> Option<Arc<ChunkData>>>(around: &ChunkLocation, get_chunk: F) -> Result<Self> {
+        let mut v: [Option<Arc<ChunkData>>; 27] = [const { None }; 27];
 
         iproduct!(-1i32..=1, -1..=1, -1..=1).for_each(|(dx, dy, dz)| {
             let current_location: ChunkLocation = *around + ChunkLocation::new(Vector3::<i32>::new(dx, dy, dz));
@@ -218,12 +219,12 @@ impl<'a> NeighborChunks<'a> {
             v[idx as usize] = Some(x);
         });
 
-        let chunk_data: Vec<&ChunkData> = v
+        let chunk_data: Vec<Arc<ChunkData>> = v
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .expect("all neighbor chunks to be initialized");
 
-        let chunk_data: [&ChunkData; 27] = chunk_data
+        let chunk_data: [Arc<ChunkData>; 27] = chunk_data
             .try_into()
             .expect("number to elements to be exactly 27");
 
@@ -234,7 +235,7 @@ impl<'a> NeighborChunks<'a> {
         assert!(pos.x != 0 || pos.y != 0 || pos.z != 0);
 
         let idx = (pos.x + 1) * 9 + (pos.y + 1) * 3 + (pos.z + 1);
-        return self.chunk_data[idx as usize];
+        return &*self.chunk_data[idx as usize];
     }
 }
 
