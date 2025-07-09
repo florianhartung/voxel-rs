@@ -8,7 +8,7 @@ pub struct Quad {
     pub position: LocalChunkLocation<WithinBounds>,
     pub direction: Direction,
     pub data: FaceData,
-    pub ambient_occlusion_values: [f32; 4],
+    pub ambient_occlusion_values: [u8; 4],
     pub reversed_orientation: bool,
 }
 
@@ -17,7 +17,7 @@ impl Quad {
         position: LocalChunkLocation<WithinBounds>,
         direction: Direction,
         data: FaceData,
-        ao_values: [f32; 4],
+        ao_values: [u8; 4],
         reversed_orientation: bool,
     ) -> Self {
         Self {

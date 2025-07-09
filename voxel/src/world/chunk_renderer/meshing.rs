@@ -23,6 +23,8 @@ use crate::world::chunk_renderer::vertex::Vertex;
 use crate::world::location::{ChunkLocation, LocalChunkLocation, WithinBounds, WorldLocation};
 use crate::world::voxel_data::VoxelType;
 
+use super::vertex::Instance;
+
 pub mod direction;
 pub mod quad;
 
@@ -31,69 +33,47 @@ pub struct ChunkMeshGenerator {
 }
 
 impl ChunkMeshGenerator {
-    pub fn generate_mesh_from_quads(quads: Vec<Quad>) -> (Vec<Vertex>, Vec<u32>) {
-        let mut vertices: Vec<Vertex> = Vec::new();
-        let mut indices: Vec<u32> = Vec::new();
+    pub fn generate_mesh_from_quads(quads: Vec<Quad>) -> Vec<Instance> {
+        let mut instances: Vec<Instance> = Vec::new();
 
         for quad in quads {
-            let base_index = vertices.len() as u32;
-
-            let mut pos = quad.position.to_f32();
+            let pos = quad.position.to_f32();
             let direction = quad
                 .direction
                 .to_vec()
                 .cast::<f32>()
-                .expect("Conversion from i32 to f32 is safe")
-                .abs();
+                .expect("Conversion from i32 to f32 is safe");
 
-            let (axis1, axis2) = quad.direction.get_normal_axes();
-            let (axis1, axis2) = (axis1.cast::<f32>().unwrap().abs(), axis2.cast::<f32>().unwrap().abs());
+            // let (axis1, axis2) = quad.direction.get_normal_axes();
+            // let (axis1, axis2) = (axis1.cast::<f32>().unwrap().abs(), axis2.cast::<f32>().unwrap().abs());
 
-            let is_backside = match quad.direction {
-                Direction::XPos | Direction::YPos | Direction::ZPos => false,
-                Direction::XNeg | Direction::YNeg | Direction::ZNeg => true,
-            };
+            // let is_backside = match quad.direction {
+            //     Direction::XPos | Direction::YPos | Direction::ZPos => false,
+            //     Direction::XNeg | Direction::YNeg | Direction::ZNeg => true,
+            // };
 
-            if !is_backside {
-                pos += direction;
-            }
+            // if !is_backside {
+            // pos += direction;
+            // }
 
-            vertices.push(Vertex::new(pos, quad.data.color, direction, quad.ambient_occlusion_values[0]));
-            vertices.push(Vertex::new(
-                pos + axis1,
-                quad.data.color,
-                direction,
-                quad.ambient_occlusion_values[1],
-            ));
-            vertices.push(Vertex::new(
-                pos + axis2,
-                quad.data.color,
-                direction,
-                quad.ambient_occlusion_values[2],
-            ));
-            vertices.push(Vertex::new(
-                pos + axis1 + axis2,
-                quad.data.color,
-                direction,
-                quad.ambient_occlusion_values[3],
-            ));
+            instances.push(Instance::new(pos, quad.data.color, direction, quad.ambient_occlusion_values, quad.reversed_orientation));
 
-            {
-                if is_backside && quad.reversed_orientation {
-                    [0, 1, 2, 2, 1, 3]
-                } else if is_backside && !quad.reversed_orientation {
-                    [0, 1, 3, 3, 2, 0]
-                } else if !is_backside && quad.reversed_orientation {
-                    [2, 1, 0, 3, 1, 2]
-                } else {
-                    [2, 3, 0, 0, 3, 1]
-                }
-            }
-            .iter()
-            .for_each(|i| indices.push(base_index + i));
+            // {
+            //     if is_backside && quad.reversed_orientation {
+            //         [0, 1, 2, 2, 1, 3]
+            //     } else if is_backside && !quad.reversed_orientation {
+            //         [0, 1, 3, 3, 2, 0]
+            //     } else if !is_backside && quad.reversed_orientation {
+            //         [2, 1, 0, 3, 1, 2]
+            //     } else {
+            //         [2, 3, 0, 0, 3, 1]
+            //     }
+            // }
+            // .iter()
+            // .for_each(|i| indices.push(base_index + i));
         }
 
-        (vertices, indices)
+        instances
     }
 
     pub fn generate_culled_mesh(data: &ChunkData, neighbor_chunks: NeighborChunks) -> Vec<Quad> {
@@ -152,9 +132,9 @@ impl ChunkMeshGenerator {
                         let c = get_voxel_in_world(neighbor_voxel_location + dir1 + dir2).ty != VoxelType::Air;
 
                         if s1 && s2 {
-                            0.0
+                            0
                         } else {
-                            3.0 - (if s1 { 1.0 } else { 0.0 } + if s2 { 1.0 } else { 0.0 } + if c { 1.0 } else { 0.0 })
+                            3 - (if s1 { 1 } else { 0 } + if s2 { 1 } else { 0 } + if c { 1 } else { 0 })
                         }
                     };
 
@@ -164,7 +144,6 @@ impl ChunkMeshGenerator {
                     let ao_4 = calc_ao(axis1, axis2);
 
                     let reverse_quad_orientation = ao_1 + ao_4 <= ao_2 + ao_3;
-                    // let reverse_quad_orientation = false;
 
                     let quad = Quad::new(
                         pos,

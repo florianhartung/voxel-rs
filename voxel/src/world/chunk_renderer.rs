@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use vertex::Instance;
 use wgpu::util::DeviceExt;
-use wgpu::{BufferUsages, PipelineCompilationOptions, PushConstantRange, ShaderStages, include_wgsl};
+use wgpu::{BufferUsages, PipelineCompilationOptions, PushConstantRange, ShaderStages, VertexBufferLayout, include_wgsl};
 
 use crate::renderer::texture::Texture;
 use crate::renderer::{RenderCtx, Renderer};
@@ -42,7 +43,7 @@ impl ChunkRenderPipeline {
                 layout: Some(&render_pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    buffers: &[Vertex::layout()],
+                    buffers: &[Vertex::layout(), Instance::layout()],
                     entry_point: Some("vs_main"),
                     compilation_options: PipelineCompilationOptions::default(),
                 },
@@ -89,39 +90,8 @@ impl ChunkRenderPipeline {
     }
 }
 
-pub fn generate_chunk_renderer(chunk_data: &ChunkData, neighbor_chunks: NeighborChunks, ctx: &RenderCtx) -> Arc<ChunkRenderer> {
-    let quads = ChunkMeshGenerator::generate_culled_mesh(&*chunk_data, neighbor_chunks);
-
-    let (vertices, indices) = ChunkMeshGenerator::generate_mesh_from_quads(quads);
-
-    let vertex_buffer = (vertices.len() > 0).then(|| {
-        ctx.device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Chunks vertex buffer"),
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                contents: bytemuck::cast_slice(&vertices),
-            })
-    });
-
-    let index_buffer = (indices.len() > 0).then(|| {
-        ctx.device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Chunks index buffer"),
-                usage: wgpu::BufferUsages::INDEX | BufferUsages::COPY_DST,
-                contents: bytemuck::cast_slice(&indices),
-            })
-    });
-
-    Arc::new(ChunkRenderer {
-        vertex_buffer,
-        index_buffer,
-        num_indices: indices.len() as u32,
-    })
-}
-
 #[derive(Debug)]
 pub struct ChunkRenderer {
-    pub vertex_buffer: Option<wgpu::Buffer>,
-    pub index_buffer: Option<wgpu::Buffer>,
-    pub num_indices: u32,
+    pub instance_buffer: Option<wgpu::Buffer>,
+    pub num_instances: u32,
 }

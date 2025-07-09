@@ -17,15 +17,28 @@ use crate::renderer::{RenderCtx, Renderer};
 use crate::timing::TimerManager;
 use crate::world::CHUNK_SIZE;
 use crate::world::chunk_data::ChunkData;
+use crate::world::chunk_renderer::ChunkRenderPipeline;
 use crate::world::chunk_renderer::meshing::NeighborChunks;
-use crate::world::chunk_renderer::{ChunkRenderPipeline, generate_chunk_renderer};
 use crate::world::location::ChunkLocation;
-use crate::world::voxel_data::{VoxelData, VoxelType};
+use crate::world::voxel_data::VoxelData;
 use crate::world::worldgen::WorldGenerator;
 
 use super::chunk_renderer::ChunkRenderer;
 use super::chunk_renderer::meshing::ChunkMeshGenerator;
-use super::chunk_renderer::vertex::Vertex;
+use super::chunk_renderer::vertex::{Instance, Vertex};
+
+// maybe store nothing and use vertex_index inside shader
+const VERTICES: [Vertex; 4] = [
+    Vertex { xyz: 0 },
+    Vertex { xyz: 1 },
+    Vertex { xyz: 2 },
+    Vertex { xyz: 3 },
+    // Vertex { xyz: [0.0, 0.0, 0.0] },
+    // Vertex { xyz: [1.0, 0.0, 0.0] },
+    // Vertex { xyz: [0.0, 0.0, 1.0] },
+    // Vertex { xyz: [1.0, 0.0, 1.0] },
+];
+const INDICES: [u32; 6] = [2, 3, 0, 0, 3, 1];
 
 #[derive(Debug)]
 pub enum Chunk {
@@ -190,6 +203,9 @@ pub struct ChunkManager {
     pub meshed_chunks_queue: Arc<SegQueue<ChunkMeshResult>>,
     chunk_render_manager: ChunkRenderPipeline,
 
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+
     pub worker_thread_pool: ThreadPool,
 }
 
@@ -211,7 +227,7 @@ impl Hash for ChunkGenResult {
     }
 }
 
-pub struct ChunkMeshResult(ChunkLocation, Vec<Vertex>, Vec<u32>);
+pub struct ChunkMeshResult(ChunkLocation, Vec<Instance>);
 
 const NUM_WORKERS: usize = 6;
 const NUM_STREAM_MESHES_PER_FRAME: usize = 256;
@@ -224,6 +240,22 @@ impl ChunkManager {
         let meshed_chunks_queue = Arc::new(SegQueue::new());
 
         let worker_thread_pool = ThreadPool::new(NUM_WORKERS);
+
+        let vertex_buffer = render_ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("chunks vertex buffer"),
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                contents: bytemuck::cast_slice(&VERTICES),
+            });
+
+        let index_buffer = render_ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("chunks index buffer"),
+                usage: wgpu::BufferUsages::INDEX | BufferUsages::COPY_DST,
+                contents: bytemuck::cast_slice(&INDICES),
+            });
 
         Self {
             chunks: hashbrown::HashMap::new(),
@@ -242,6 +274,8 @@ impl ChunkManager {
             worker_thread_pool,
             renderers: HashMap::new(),
             meshed_chunks_queue,
+            vertex_buffer,
+            index_buffer,
         }
     }
 
@@ -416,34 +450,26 @@ impl ChunkManager {
         timer.start("chunk_manager_stream_meshes");
 
         for _ in 0..NUM_STREAM_MESHES_PER_FRAME {
-            let Some(ChunkMeshResult(loc, vertices, indices)) = self.meshed_chunks_queue.pop() else {
+            let Some(ChunkMeshResult(loc, instances)) = self.meshed_chunks_queue.pop() else {
                 break;
             };
 
-            let vertex_buffer = (vertices.len() > 0).then(|| {
+            let instance_buffer = (instances.len() > 0).then(|| {
                 ctx.device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("Chunks vertex buffer"),
-                        usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                        contents: bytemuck::cast_slice(&vertices),
+                        label: Some("chunks instance buffer"),
+                        usage: wgpu::BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                        contents: bytemuck::cast_slice(&instances),
                     })
             });
 
-            let index_buffer = (indices.len() > 0).then(|| {
-                ctx.device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("Chunks index buffer"),
-                        usage: wgpu::BufferUsages::INDEX | BufferUsages::COPY_DST,
-                        contents: bytemuck::cast_slice(&indices),
-                    })
-            });
-
-            self.total_mesh_data_size += vertices.len() * std::mem::size_of::<Vertex>() + indices.len() * std::mem::size_of::<u32>();
+            self.total_mesh_data_size += VERTICES.len() * std::mem::size_of::<Vertex>()
+                + INDICES.len() * std::mem::size_of::<u32>()
+                + instances.len() * std::mem::size_of::<Instance>();
 
             let chunk_renderer = Arc::new(ChunkRenderer {
-                vertex_buffer,
-                index_buffer,
-                num_indices: indices.len() as u32,
+                instance_buffer,
+                num_instances: instances.len() as u32,
             });
 
             self.chunks
@@ -512,9 +538,9 @@ impl ChunkManager {
         let meshed_chunks_queue = self.meshed_chunks_queue.clone();
         self.worker_thread_pool.execute(move || {
             let quads = ChunkMeshGenerator::generate_culled_mesh(&*chunk_data, neighbor_chunks);
-            let (vertices, indices) = ChunkMeshGenerator::generate_mesh_from_quads(quads);
+            let instances = ChunkMeshGenerator::generate_mesh_from_quads(quads);
 
-            meshed_chunks_queue.push(ChunkMeshResult(loc, vertices, indices));
+            meshed_chunks_queue.push(ChunkMeshResult(loc, instances));
         });
     }
 }
@@ -522,15 +548,12 @@ impl ChunkManager {
 impl Renderer for ChunkManager {
     fn render<'a>(&'a self, mut render_pass: RenderPass<'a>, camera_bind_group: &'a BindGroup, _render_ctx: &RenderCtx) {
         for (position, renderer) in &self.renderers {
-            if let Some((vertex_buffer, index_buffer)) = renderer
-                .vertex_buffer
-                .as_ref()
-                .zip(renderer.index_buffer.as_ref())
-            {
+            if let Some(instance_buffer) = &renderer.instance_buffer {
                 render_pass.set_pipeline(&self.chunk_render_manager.render_pipeline);
 
-                render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
 
                 render_pass.set_bind_group(0, camera_bind_group, &[]);
 
@@ -538,7 +561,7 @@ impl Renderer for ChunkManager {
                 let loc = [position.to_world_location_f32()];
                 render_pass.set_push_constants(ShaderStages::VERTEX, 0, bytemuck::cast_slice(&loc));
 
-                render_pass.draw_indexed(0..renderer.num_indices, 0, 0..1);
+                render_pass.draw_indexed(0..(INDICES.len() as u32), 0, 0..renderer.num_instances);
             }
         }
     }
