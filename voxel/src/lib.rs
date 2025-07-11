@@ -82,7 +82,7 @@ impl windowing::Application<EngineConfig> for Engine {
             height,
             Deg(80.0),
             0.1,
-            1000.0,
+            10000.0,
         );
 
         let mut timer = TimerManager::new();
@@ -207,6 +207,7 @@ impl Engine {
         self.chunk_manager.render_distance = self.egui_interface.render_distance;
         self.chunk_manager.render_empty_chunks = self.egui_interface.render_empty_chunks;
         self.camera_controller.no_clip = self.egui_interface.no_clip;
+        self.camera_controller.speed = self.egui_interface.camera_speed;
 
         self.timer.start("update_camera");
 

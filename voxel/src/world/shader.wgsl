@@ -170,7 +170,7 @@ fn vs_main(
 
 	var fog_dist: f32;
 	fog_dist = distance(camera.position.xyz, vertex_position);
-	var fog: f32 = 1.0 - max(0.0, min(1.0, pow(fog_dist / (32.0*32.0), 16.0)));
+	var fog: f32 = 1.0 - max(0.0, min(1.0, pow(fog_dist / (32.0*32.0*10.0), 16.0)));
 
 	var ambient_occlusion = f32(selected_ao) / 3.0; // shadow 0.0 <-> 1.0 light
 

@@ -166,11 +166,11 @@ pub struct CameraController {
     last_rotate_vertical: f64,
     rotate_horizontal: f64,
     rotate_vertical: f64,
-    speed: f32,
     sensitivity: f32,
     is_jumping: bool,
     pub no_clip: bool,
     pub is_grounded: bool,
+    pub speed: f32,
 }
 
 impl CameraController {

@@ -26,6 +26,7 @@ pub struct DebugOverlay {
     pub render_distance: i32,
     pub render_empty_chunks: bool,
     pub no_clip: bool,
+    pub camera_speed: f32,
 
     output: Option<egui::FullOutput>,
 }
@@ -64,6 +65,7 @@ impl DebugOverlay {
             render_ctx,
             paint_jobs: None,
             output: None,
+            camera_speed: 100.0,
         }
     }
 
@@ -128,6 +130,10 @@ impl DebugOverlay {
                 ));
                 ui.label(format!("V: {}  T: {}", stats.num_vertices, stats.num_triangles));
                 ui.checkbox(&mut self.render_empty_chunks, "render empty chunks");
+            });
+
+            ui.collapsing_opened("Controls", |ui| {
+                ui.add(Slider::new(&mut self.camera_speed, 100.0..=10000.0).text("Camera speed"));
             });
 
             ui.collapsing("Timing", |ui| {
